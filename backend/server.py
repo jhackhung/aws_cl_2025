@@ -1,6 +1,6 @@
 import json
 import boto3
-from fastapi import FastAPI, UploadFile, Form
+from fastapi import FastAPI, UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict
 from datetime import datetime
@@ -10,6 +10,14 @@ import mysql.connector
 import uuid
 from datetime import datetime
 from fastapi.staticfiles import StaticFiles
+from img_generate.img_generator import generate_images, save_images, get_image_size, process_images
+from img_generate.img_inpainting import inpaint_images
+import uuid
+import threading
+import asyncio
+import logging
+import base64
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
@@ -17,17 +25,18 @@ DATABASE_PASSWORD = os.getenv('DATABASE_PASSWORD')
 DATABASE_USERNAME = os.getenv('DATABASE_USERNAME')
 DATABASE_ENDPOINT = os.getenv('DATABASE_ENDPOINT')
 
-from img_generate.img_generator import generate_images, save_images, get_image_size, process_images
-from img_generate.img_inpainting import inpaint_images
-import uuid
-import threading
-import asyncio
-import logging
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 app.mount("/generated_images",
           StaticFiles(directory="generated_images"),
           name="static")
@@ -84,7 +93,13 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
                                cfg_scale, seed, similarityStrength):
 
     if imgs:
-        uploaded_image_bytes = [await img.read() for img in imgs]
+        # uploaded_image_bytes = [await img.read() for img in imgs]
+        uploaded_image_bytes = []
+        for img_id in imgs:
+            img = await get_image(img_id)
+            if img:
+                uploaded_image_bytes.append(base64.b64encode(img.read()).decode('utf8'))
+
 
         # 可依第一張圖片大小補高度寬度
         if not height or not width:
@@ -115,16 +130,31 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
     task_result[task_id] = saved_paths
 
 
-def inpainting_image_logic(task_id, batch_count, text, imgs, mask_prompt,
+async def inpainting_image_logic(task_id, batch_count, text, imgs, mask_prompt,
                            mask_image, negative_prompt, height, width,
                            cfg_scale, seed):
+    if imgs:
+        # uploaded_image_bytes = [await img.read() for img in imgs]
+        uploaded_image_bytes = []
+        for img_id in imgs:
+            img = await get_image(img_id)
+            if img:
+                uploaded_image_bytes.append(base64.b64encode(img.read()).decode('utf8'))
+
+        # 可依第一張圖片大小補高度寬度
+        if not height or not width:
+            first_image_size = await get_image_size(uploaded_image_bytes[0])
+            height = height or first_image_size["height"]
+            width = width or first_image_size["width"]
+
+    
     img_list = inpaint_images(model_id=model_id,
                                  task_id=task_id,
                                  prompt=text,
                                  mask_prompt=mask_prompt,
                                  mask_image=mask_image,
                                  negative_prompt=negative_prompt,
-                                 image_bytes_list=imgs,
+                                 image_bytes_list=uploaded_image_bytes,
                                  batch_count=batch_count,
                                  height=height,
                                  width=width,
@@ -153,6 +183,14 @@ async def generate_image(
 
     height = parameters.get("height") if parameters else 1024
     width = parameters.get("width") if parameters else 1024
+
+    if parameters:
+        for feature_key, feature_value in parameters.items():
+            # Skip height and width since they're used for image dimensions
+            if feature_key not in ["height", "width"]:
+                text += f" {feature_key}:{feature_value}"
+
+    logger.info("text: %s", text)
 
     task_id = str(uuid.uuid4())  # Generate a unique task ID
 
@@ -186,6 +224,12 @@ async def inpainting_image(
 
     height = parameters.get("height") if parameters else 1024
     width = parameters.get("width") if parameters else 1024
+
+    if parameters:
+        for feature_key, feature_value in parameters.items():
+            # Skip height and width since they're used for image dimensions
+            if feature_key not in ["height", "width"]:
+                text += f" {feature_key}:{feature_value}"
 
     task_id = str(uuid.uuid4())
 
@@ -350,11 +394,75 @@ async def save_image(
         conn.rollback()
         return {"error": f"Server error: {str(e)}"}, 500
 
-
 @app.post("/template/create")
-async def create_template(projectId: str = Form(...)):
-    # TODO: Implement template creation logic
-    return {"templateId": "template_id"}  # Placeholder
+async def create_template(
+    projectId: str = Form(...),
+    name: Optional[str] = Form(None)
+):
+    try:
+        cursor = conn.cursor(dictionary=True)
+        template_id = str(uuid.uuid4())
+        current_time = datetime.now()
+
+        # First verify the source project exists and get its details
+        cursor.execute("SELECT name FROM projects WHERE id = %s", (projectId,))
+        source_project = cursor.fetchone()
+        if not source_project:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Source project not found"}
+            )
+
+        # Use provided name or generate one from source project
+        template_name = name or f"Template - {source_project['name']}"
+
+        # Copy project metadata with readonly flag
+        copy_project_query = """
+        INSERT INTO projects (id, name, created_at, modified_at, readonly)
+        SELECT %s, %s, %s, %s, TRUE
+        FROM projects WHERE id = %s
+        """
+        cursor.execute(copy_project_query, 
+                      (template_id, template_name, current_time, current_time, projectId))
+
+        # Copy project tags
+        copy_tags_query = """
+        INSERT INTO project_tags (project_id, tag)
+        SELECT %s, tag FROM project_tags WHERE project_id = %s
+        """
+        cursor.execute(copy_tags_query, (template_id, projectId))
+
+        # Copy project images
+        copy_images_query = """
+        INSERT INTO project_images (project_id, image_id)
+        SELECT %s, image_id FROM project_images WHERE project_id = %s
+        """
+        cursor.execute(copy_images_query, (template_id, projectId))
+
+        conn.commit()
+        cursor.close()
+
+        return {
+            "templateId": template_id,
+            "name": template_name,
+            "sourceProjectId": projectId,
+            "created": current_time.isoformat()
+        }
+
+    except mysql.connector.Error as err:
+        conn.rollback()
+        logger.error(f"Database error while creating template: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Server error while creating template: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
 
 
 @app.post("/txt/optimize")
@@ -368,32 +476,162 @@ async def optimize_text(text: str = Form(...)):
 
 @app.get("/project/{id}")
 async def get_project(id: str):
-    # TODO: Implement project retrieval logic
-    return {
-        "id": id,
-        "tags": [],
-        "images": [],
-        "created": datetime.now(),
-        "modified": datetime.now()
-    }  # Placeholder
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get project details including template info if it exists
+        project_query = """
+        SELECT 
+            p.id,
+            p.name,
+            p.template_id,
+            p.created_at,
+            p.modified_at,
+            p.readonly,
+            GROUP_CONCAT(DISTINCT pt.tag) as tags,
+            GROUP_CONCAT(DISTINCT pi.image_id) as image_ids
+        FROM projects p
+        LEFT JOIN project_tags pt ON p.id = pt.project_id
+        LEFT JOIN project_images pi ON p.id = pi.project_id
+        WHERE p.id = %s
+        GROUP BY p.id, p.name, p.template_id, p.created_at, p.modified_at, p.readonly
+        """
+        
+        cursor.execute(project_query, (id,))
+        project = cursor.fetchone()
+        
+        if not project:
+            cursor.close()
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Project not found"}
+            )
+            
+        # Get associated images with their metadata
+        images_query = """
+        SELECT i.id, i.type, i.seed, i.prompt, i.parameters
+        FROM images i
+        INNER JOIN project_images pi ON i.id = pi.image_id
+        WHERE pi.project_id = %s
+        """
+        cursor.execute(images_query, (id,))
+        images = cursor.fetchall()
+        
+        cursor.close()
 
+        # Process images data
+        processed_images = []
+        for img in images:
+            processed_images.append({
+                "id": img["id"],
+                "type": img["type"],
+                "seed": img["seed"],
+                "prompt": img["prompt"],
+                "parameters": json.loads(img["parameters"]) if img["parameters"] else None
+            })
 
-@app.get("/template/all")
+        # Prepare response
+        response = {
+            "id": project["id"],
+            "name": project["name"],
+            "templateId": project["template_id"],
+            "readonly": project["readonly"],
+            "tags": project["tags"].split(",") if project["tags"] else [],
+            "images": processed_images,
+            "created": project["created_at"].isoformat(),
+            "modified": project["modified_at"].isoformat()
+        }
+        
+        return response
+
+    except mysql.connector.Error as err:
+        logger.error(f"Database error while fetching project: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        logger.error(f"Server error while fetching project: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
+    
+@app.get("/templates")
 async def get_all_templates():
-    # TODO: Implement template retrieval logic
-    return {"templateIds": ["template_id_1", "template_id_2"]}  # Placeholder
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Simplified query to get only template IDs
+        query = """
+        SELECT id
+        FROM projects
+        WHERE readonly = TRUE
+        ORDER BY modified_at DESC
+        """
+        
+        cursor.execute(query)
+        templates = cursor.fetchall()
+        cursor.close()
+        
+        # Extract just the IDs
+        template_ids = [template["id"] for template in templates]
+        
+        return {"templates": template_ids}
+
+    except mysql.connector.Error as err:
+        logger.error(f"Database error while fetching templates: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        logger.error(f"Server error while fetching templates: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
+
+
+@app.get("/projects")
+async def get_all_projects():
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Simplified query to get only project IDs for non-templates
+        query = """
+        SELECT id
+        FROM projects
+        WHERE readonly = FALSE
+        ORDER BY modified_at DESC
+        """
+        
+        cursor.execute(query)
+        projects = cursor.fetchall()
+        cursor.close()
+        
+        # Extract just the IDs
+        project_ids = [project["id"] for project in projects]
+        
+        return {"projects": project_ids}
+
+    except mysql.connector.Error as err:
+        logger.error(f"Database error while fetching projects: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        logger.error(f"Server error while fetching projects: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
 
 
 @app.get("/template/{id}")
 async def get_template(id: str):
-    # TODO: Implement template retrieval logic
-    return {
-        "id": id,
-        "tags": [],
-        "images": [],
-        "created": datetime.now(),
-        "modified": datetime.now()
-    }  # Placeholder
+    return await get_project(id)
 
 
 @app.get("/img/result/{taskId}")
@@ -411,18 +649,46 @@ async def get_image_result(taskId: str):
 
 @app.get("/img/{id}")
 async def get_image(id: str):
-    # TODO: Implement image retrieval logic
-    return {
-        "id": id,
-        "projectId": "project_id",
-        "data": "base64_string",
-        "type": "image/png",
-        "seed": "seed_value",
-        "prompt": "prompt_text",
-        "parameters": {
-            "color": "red"
-        },
-    }  # Placeholder
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Fetch image metadata from database
+        select_query = "SELECT * FROM images WHERE id = %s"
+        cursor.execute(select_query, (id,))
+        image_metadata = cursor.fetchone()
+        
+        if not image_metadata:
+            raise HTTPException(status_code=404, detail="Image not found")
+        
+        # Fetch image data from S3
+        s3_key = f"images/{id}"
+        try:
+            s3_response = s3_client.get_object(Bucket="scottish-leader", Key=s3_key)
+            image_data = s3_response['Body'].read()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to fetch image from S3: {str(e)}")
+        
+        # Encode image to base64
+        image_base64 = base64.b64encode(image_data).decode('utf-8')
+        
+        # Prepare response
+        response = {
+            "id": id,
+            "projectId": image_metadata['project_id'],
+            "data": image_base64,
+            "type": image_metadata['type'],
+            "seed": image_metadata.get('seed'),
+            "prompt": image_metadata.get('prompt'),
+            "parameters": json.loads(image_metadata['parameters']) if image_metadata.get('parameters') else {},
+        }
+        
+        cursor.close()
+        return JSONResponse(content=response)
+
+    except mysql.connector.Error as err:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(err)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 
 # Create MySQL connection
