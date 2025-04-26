@@ -1,13 +1,13 @@
 <template>
   <div class="design-input-page">
-    <DesignInputPageHeader 
+    <DesignInputPageHeader
       :project="project"
       :loading="loading"
       :isFormValid="!!form.prompt.trim()"
       @clear-form="clearForm"
       @start-generation="startGeneration"
     />
-    
+
     <NLayoutContent class="page-content">
       <NSpin :show="loading">
         <NGrid cols="1 l:3" x-gap="24" y-gap="24">
@@ -29,7 +29,7 @@
                     :autosize="{ minRows: 5, maxRows: 10 }"
                   />
                 </NFormItem>
-                
+
                 <NFormItem label="負面提示詞" path="negativePrompt">
                   <NInput
                     v-model:value="form.negativePrompt"
@@ -38,7 +38,7 @@
                     :autosize="{ minRows: 3, maxRows: 5 }"
                   />
                 </NFormItem>
-                
+
                 <NFormItem label="風格" path="style">
                   <NSelect
                     v-model:value="form.style"
@@ -47,7 +47,7 @@
                     clearable
                   />
                 </NFormItem>
-                
+
                 <NFormItem label="尺寸" path="size">
                   <NSelect
                     v-model:value="form.size"
@@ -55,55 +55,85 @@
                     placeholder="選擇圖像尺寸"
                   />
                 </NFormItem>
-                
+
                 <NFormItem label="生成數量" path="count">
-                  <NSlider v-model:value="form.count" :min="1" :max="10" :step="1" />
-                  <NInputNumber v-model:value="form.count" :min="1" :max="10" size="small" style="margin-left: 12px;"/>
+                  <NSlider
+                    v-model:value="form.count"
+                    :min="1"
+                    :max="10"
+                    :step="1"
+                  />
+                  <NInputNumber
+                    v-model:value="form.count"
+                    :min="1"
+                    :max="10"
+                    size="small"
+                    style="margin-left: 12px"
+                  />
                 </NFormItem>
-                
+
                 <NFormItem label="提示詞引導強度" path="cfgScale">
                   <NTooltip trigger="hover" placement="top">
                     <template #trigger>
-                      <NSlider v-model:value="form.cfgScale" :min="1" :max="20" :step="0.5" />
+                      <NSlider
+                        v-model:value="form.cfgScale"
+                        :min="1"
+                        :max="20"
+                        :step="0.5"
+                      />
                     </template>
                     數值越高，AI 生成時會更嚴格地遵循提示詞
                   </NTooltip>
                 </NFormItem>
-                
+
                 <NFormItem label="迭代步數" path="steps">
                   <NTooltip trigger="hover" placement="top">
                     <template #trigger>
-                      <NSlider v-model:value="form.steps" :min="10" :max="150" :step="1" />
+                      <NSlider
+                        v-model:value="form.steps"
+                        :min="10"
+                        :max="150"
+                        :step="1"
+                      />
                     </template>
                     步數越多，生成結果越精細，但耗時也越長
                   </NTooltip>
                 </NFormItem>
-                
+
                 <NFormItem label="隨機種子" path="seed">
                   <div class="seed-input">
                     <NInputNumber
                       v-model:value="form.seed"
                       :min="-1"
                       :max="2147483647"
-                      style="width: 160px;"
+                      style="width: 160px"
                       :disabled="form.randomizeSeed"
                     />
-                    <NCheckbox v-model:checked="form.randomizeSeed">隨機</NCheckbox>
+                    <NCheckbox v-model:checked="form.randomizeSeed"
+                      >隨機</NCheckbox
+                    >
                   </div>
                 </NFormItem>
               </NForm>
             </NCard>
           </NGridItem>
-          
+
           <NGridItem class="reference-container">
             <NCard title="參考圖像" class="reference-card">
               <div class="reference-content">
-                <div v-if="referenceImages.length === 0" class="empty-reference">
+                <div
+                  v-if="referenceImages.length === 0"
+                  class="empty-reference"
+                >
                   <p>沒有參考圖像</p>
                   <NButton @click="openReferenceUpload">上傳參考圖像</NButton>
                 </div>
                 <div v-else class="reference-images">
-                  <div v-for="(image, index) in referenceImages" :key="index" class="reference-image-wrapper">
+                  <div
+                    v-for="(image, index) in referenceImages"
+                    :key="index"
+                    class="reference-image-wrapper"
+                  >
                     <NImage
                       :src="image"
                       object-fit="contain"
@@ -112,28 +142,52 @@
                       class="reference-image"
                     />
                     <div class="reference-image-overlay">
-                      <NButton circle quaternary type="error" @click="removeReferenceImage(index)" class="remove-button">
+                      <NButton
+                        circle
+                        quaternary
+                        type="error"
+                        @click="removeReferenceImage(index)"
+                        class="remove-button"
+                      >
                         <template #icon>✕</template>
                       </NButton>
                     </div>
                   </div>
                   <div class="reference-actions">
-                    <NButton @click="openReferenceUpload" :disabled="referenceImages.length >= 3">
-                      {{ referenceImages.length >= 3 ? '最多 3 張參考圖' : '添加參考圖' }}
+                    <NButton
+                      @click="openReferenceUpload"
+                      :disabled="referenceImages.length >= 3"
+                    >
+                      {{
+                        referenceImages.length >= 3
+                          ? "最多 3 張參考圖"
+                          : "添加參考圖"
+                      }}
                     </NButton>
-                    <NButton @click="clearReferenceImages" :disabled="referenceImages.length === 0">
+                    <NButton
+                      @click="clearReferenceImages"
+                      :disabled="referenceImages.length === 0"
+                    >
                       清除所有
                     </NButton>
                   </div>
                 </div>
-                
-                <div class="reference-strength" v-if="referenceImages.length > 0">
+
+                <div
+                  class="reference-strength"
+                  v-if="referenceImages.length > 0"
+                >
                   <span>參考強度：{{ form.referenceStrength }}%</span>
-                  <NSlider v-model:value="form.referenceStrength" :min="0" :max="100" :step="5" />
+                  <NSlider
+                    v-model:value="form.referenceStrength"
+                    :min="0"
+                    :max="100"
+                    :step="5"
+                  />
                 </div>
               </div>
             </NCard>
-            
+
             <NCard title="自訂模型" class="model-card">
               <NSelect
                 v-model:value="form.model"
@@ -148,8 +202,13 @@
         </NGrid>
       </NSpin>
     </NLayoutContent>
-    
-    <NModal v-model:show="showUploadModal" preset="card" title="上傳參考圖像" class="upload-modal">
+
+    <NModal
+      v-model:show="showUploadModal"
+      preset="card"
+      title="上傳參考圖像"
+      class="upload-modal"
+    >
       <div class="upload-area">
         <NUpload
           ref="uploadRef"
@@ -163,21 +222,25 @@
             <NButton>選擇圖像</NButton>
           </div>
         </NUpload>
-        
+
         <div class="upload-preview" v-if="uploadFile">
           <NImage
             :src="uploadFileUrl"
             object-fit="contain"
             :alt="'預覽圖像'"
-            style="max-height: 300px;"
+            style="max-height: 300px"
           />
         </div>
       </div>
-      
+
       <template #footer>
         <div class="modal-footer">
           <NButton @click="showUploadModal = false">取消</NButton>
-          <NButton type="primary" :disabled="!uploadFile" @click="addReferenceImage">
+          <NButton
+            type="primary"
+            :disabled="!uploadFile"
+            @click="addReferenceImage"
+          >
             添加
           </NButton>
         </div>
@@ -187,6 +250,7 @@
 </template>
 
 <script setup>
+// 導入所需組件
 import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useProjectStore } from "../stores/project";
@@ -208,7 +272,7 @@ import {
   NInputNumber,
   NCheckbox,
   NTooltip,
-  NUpload
+  NUpload,
 } from "naive-ui";
 import DesignInputPageHeader from "../components/headers/DesignInputPageHeader.vue";
 
@@ -306,7 +370,7 @@ onMounted(async () => {
     // 如果有項目 ID，加載項目數據
     if (projectId.value && projectId.value !== "temp") {
       await projectStore.fetchProjectById(projectId.value);
-      
+
       // 如果項目有初始參數，使用它們
       if (project.value && project.value.designParams) {
         form.value = {
@@ -322,7 +386,8 @@ onMounted(async () => {
       form.value = {
         ...form.value,
         prompt: storedParams.prompt || form.value.prompt,
-        negativePrompt: storedParams.negativePrompt || form.value.negativePrompt,
+        negativePrompt:
+          storedParams.negativePrompt || form.value.negativePrompt,
         cfgScale: storedParams.cfgScale || form.value.cfgScale,
         steps: storedParams.steps || form.value.steps,
         seed: storedParams.seed || form.value.seed,
@@ -346,7 +411,7 @@ const openReferenceUpload = () => {
 const handleUploadChange = (options) => {
   const { file } = options;
   uploadFile.value = file;
-  
+
   // 獲取文件 URL
   if (file.file) {
     uploadFileUrl.value = URL.createObjectURL(file.file);
@@ -356,7 +421,10 @@ const handleUploadChange = (options) => {
 // 添加參考圖像
 const addReferenceImage = () => {
   if (uploadFileUrl.value) {
-    imageStore.setReferenceImages([...referenceImages.value, uploadFileUrl.value]);
+    imageStore.setReferenceImages([
+      ...referenceImages.value,
+      uploadFileUrl.value,
+    ]);
     showUploadModal.value = false;
   }
 };
@@ -415,7 +483,9 @@ const startGeneration = () => {
   // 導航到生成頁面
   router.push({
     name: "ai-generate",
-    params: { projectId: projectId.value !== "temp" ? projectId.value : "temp" },
+    params: {
+      projectId: projectId.value !== "temp" ? projectId.value : "temp",
+    },
   });
 };
 </script>
@@ -431,6 +501,8 @@ const startGeneration = () => {
   padding: 0 24px 24px 24px;
   width: 100%;
   box-sizing: border-box;
+  position: relative;
+  z-index: 10;
 }
 
 .design-form-container {
@@ -439,12 +511,44 @@ const startGeneration = () => {
 
 .design-form {
   height: 100%;
+  background-color: #fff;
+}
+
+.n-card {
+  background-color: #fff !important;
+  border: 1px solid #eaeaea;
+  overflow: visible !important;
+  position: relative;
+  z-index: 15;
+}
+
+.n-card__content {
+  padding: 16px;
+}
+
+.n-card-header__main {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* 加強設計表單的顯示 */
+.n-form .n-form-item {
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 20;
+}
+
+.n-form .n-form-item-label {
+  font-weight: 500;
+  color: #333;
 }
 
 .seed-input {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .reference-container {
@@ -453,8 +557,11 @@ const startGeneration = () => {
   gap: 24px;
 }
 
-.reference-card, .model-card {
+.reference-card,
+.model-card {
   width: 100%;
+  height: 100%;
+  background-color: #fff;
 }
 
 .reference-content {
@@ -481,12 +588,15 @@ const startGeneration = () => {
 
 .reference-image-wrapper {
   position: relative;
+  height: 200px;
   border-radius: 8px;
   overflow: hidden;
 }
 
 .reference-image {
   width: 100%;
+  height: 100%;
+  object-fit: cover;
   border-radius: 8px;
 }
 
@@ -504,6 +614,7 @@ const startGeneration = () => {
 .reference-actions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .reference-strength {
@@ -530,22 +641,59 @@ const startGeneration = () => {
   border-radius: 8px;
 }
 
+.upload-preview {
+  display: flex;
+  justify-content: center;
+  max-height: 300px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
 }
 
-/* 深色模式適配 */
-:root.dark .model-description {
-  color: #aaa;
+/* 解決深色模式下顯示問題 */
+:root.dark .design-form,
+:root.dark .reference-card,
+:root.dark .model-card,
+:root.dark .n-card {
+  background-color: var(--card-bg-color, #1f1f1f) !important;
+  color: var(--text-color, #e0e0e0);
+  border-color: #333;
+}
+
+:root.dark .n-card-header__main,
+:root.dark .n-form-item-label {
+  color: var(--text-color, #e0e0e0) !important;
 }
 
 :root.dark .empty-reference {
   color: #aaa;
 }
 
+:root.dark .model-description {
+  color: #aaa;
+}
+
 :root.dark .upload-trigger {
   border-color: #444;
+}
+
+@media (max-width: 768px) {
+  .page-content {
+    padding: 0 16px 16px 16px;
+  }
+
+  .reference-image-wrapper {
+    height: 150px;
+  }
+
+  .upload-preview img {
+    max-width: 100%;
+    height: auto;
+  }
 }
 </style>

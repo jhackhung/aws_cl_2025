@@ -628,6 +628,8 @@ const saveEdits = async () => {
   padding: 16px;
   background-color: #fff;
   border-bottom: 1px solid #eee;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .editor-canvas-container {
@@ -651,6 +653,11 @@ const saveEdits = async () => {
   padding: 16px;
   background-color: #fff;
   border-top: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .tool-group {
@@ -667,6 +674,7 @@ const saveEdits = async () => {
   display: flex;
   gap: 10px;
   margin-top: 8px;
+  flex-wrap: wrap;
 }
 
 .color-button {
@@ -691,6 +699,7 @@ const saveEdits = async () => {
   display: flex;
   gap: 8px;
   margin-top: 16px;
+  flex-wrap: wrap;
 }
 
 .settings-container {
@@ -738,32 +747,37 @@ const saveEdits = async () => {
   opacity: 1;
 }
 
-/* 深色模式適配 */
-:root.dark .editor-container {
-  background-color: #333;
-}
+@media (max-width: 768px) {
+  .page-content {
+    padding: 0 16px 16px 16px;
+  }
 
-:root.dark .editor-header,
-:root.dark .editor-tools {
-  background-color: #2a2a2a;
-  border-color: #444;
-}
+  .editor-canvas-container {
+    height: 300px;
+  }
 
-:root.dark .editor-canvas {
-  background-color: #222;
-}
+  .editor-header,
+  .editor-tools {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 
-:root.dark .color-button {
-  border-color: #555;
-}
+  .tool-selection {
+    margin-top: 8px;
+    width: 100%;
+  }
 
-:root.dark .color-button.active {
-  border-color: #ddd;
-}
+  .action-buttons {
+    width: 100%;
+    justify-content: center;
+  }
 
-:root.dark .original-image,
-:root.dark .inpainting-settings,
-:root.dark .inpainting-results {
-  background-color: #2a2a2a;
+  .color-buttons {
+    justify-content: center;
+  }
+
+  .inpainting-settings {
+    margin-top: 16px;
+  }
 }
 </style>

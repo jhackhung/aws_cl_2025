@@ -270,14 +270,14 @@ import {
   NTag,
   NInput,
   NIcon,
-  NPagination
+  NPagination,
 } from "naive-ui";
 import {
   PlusOutlined,
   SearchOutlined,
   EyeOutlined,
   SyncOutlined,
-  DeleteOutlined
+  DeleteOutlined,
 } from "@vicons/antd";
 import TagSelector from "../components/ui/TagSelector.vue";
 import GalleryPageHeader from "../components/headers/GalleryPageHeader.vue";
@@ -649,30 +649,26 @@ const goToCreateImage = () => {
   width: 200px;
 }
 
-.gallery-container {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
 .gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
   width: 100%;
-  background-color: transparent;
 }
 
 .gallery-item {
   position: relative;
   border-radius: 8px;
   overflow: hidden;
-  aspect-ratio: 3/2;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  aspect-ratio: 1/1;
+  background-color: #f0f0f0;
 }
 
 .gallery-item:hover {
   transform: translateY(-4px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .gallery-image {
@@ -685,7 +681,7 @@ const goToCreateImage = () => {
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 100%;
+  right: 0;
   padding: 16px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
   color: white;
@@ -718,7 +714,7 @@ const goToCreateImage = () => {
 .image-actions {
   display: flex;
   gap: 8px;
-  margin-right: 28px;
+  margin-right: 0;
 }
 
 .pagination-container {
@@ -784,6 +780,7 @@ const goToCreateImage = () => {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
 .tags-display {
@@ -808,33 +805,11 @@ const goToCreateImage = () => {
   gap: 12px;
 }
 
-/* 深色模式適配 */
-:root.dark .filters-section {
-  background-color: #2a2a2a;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-:root.dark .filter-header h2 {
-  color: #e0e0e0;
-}
-
-:root.dark .filter-label {
-  color: #aaa;
-}
-
-:root.dark .image-preview-container {
-  background-color: #333;
-}
-
-:root.dark .parameter-item {
-  border-color: #444;
-}
-
-:root.dark .param-label {
-  color: #aaa;
-}
-
 @media (max-width: 768px) {
+  .page-content {
+    padding: 0 16px 16px 16px;
+  }
+
   .filter-header {
     flex-direction: column;
     align-items: flex-start;
@@ -847,15 +822,44 @@ const goToCreateImage = () => {
   .filter-controls {
     flex-direction: column;
     align-items: flex-start;
+    width: 100%;
+    gap: 12px;
   }
 
   .project-container,
   .tags-container {
     width: 100%;
+    flex-wrap: wrap;
   }
 
   .filter-select {
     width: 100%;
+  }
+
+  .gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  .image-info h3 {
+    font-size: 14px;
+  }
+
+  .image-actions {
+    margin-right: 0;
+  }
+
+  .image-preview-container {
+    height: auto;
+  }
+
+  .detail-image {
+    max-height: 300px;
+  }
+
+  .tag-input-area {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

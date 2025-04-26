@@ -581,6 +581,7 @@ const createProject = async () => {
 
 .project-card {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  height: 100%;
 }
 
 .project-card:hover {
@@ -598,6 +599,7 @@ const createProject = async () => {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .tags-display {
@@ -605,6 +607,7 @@ const createProject = async () => {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  margin-bottom: 8px;
 }
 
 .add-tag-btn {
@@ -626,6 +629,7 @@ const createProject = async () => {
   overflow: hidden;
   border: 2px solid transparent;
   transition: all 0.2s ease;
+  height: 100%;
 }
 
 .template-card:hover {
@@ -695,15 +699,35 @@ const createProject = async () => {
   .filter-controls {
     flex-direction: column;
     align-items: flex-start;
+    width: 100%;
   }
 
   .tags-container,
   .sort-container {
     width: 100%;
+    margin-top: 8px;
   }
 
   .sort-select {
     width: 100%;
+  }
+
+  .template-info {
+    padding: 8px;
+  }
+
+  .template-info h3 {
+    font-size: 14px;
+  }
+
+  .template-info p {
+    font-size: 12px;
+  }
+
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
   }
 }
 </style>
