@@ -108,81 +108,92 @@
 
           <NTag v-if="style" type="info">{{ style }}</NTag>
         </div>
-        <NAlert title="提示" type="info" v-if="generatedImages.length">
+
+        <!-- 顯示進度條或提示訊息，根據載入狀態 -->
+        <div v-if="loading" class="progress-container">
+          <NProgress
+            type="line"
+            :percentage="generationProgress"
+            :indicator-placement="'inside'"
+            :height="12"
+            processing
+          />
+          <div class="progress-text">
+            {{ generationProgress >= 100 ? "處理完成" : "正在生成圖片中..." }}
+            {{ generationProgress.toFixed(0) }}%
+          </div>
+        </div>
+        <NAlert title="提示" type="info" v-else-if="generatedImages.length">
           選擇您喜歡的設計結果，然後點擊「保存並繼續」進入設計師修訂階段
         </NAlert>
       </div>
 
-      <NSpin
-        :show="loading"
-        description="AI 正在生成您的設計，這可能需要一些時間..."
-      >
-        <div v-if="generatedImages.length" class="images-section">
-          <!-- 將生成的圖片按批次分組顯示 -->
-          <div
-            v-for="(batch, batchIndex) in imageBatches"
-            :key="batchIndex"
-            class="image-batch"
-          >
-            <!-- 批次標題和時間戳 -->
-            <div class="generation-batch-title">
-              <h4>生成於 {{ formatTimestamp(batch[0]?.createdAt) }}</h4>
-            </div>
-            <!-- 水平滑動容器 -->
-            <div class="horizontal-scroll-container">
-              <div class="images-row">
-                <div
-                  v-for="image in batch"
-                  :key="image.id"
-                  :class="[
-                    'image-card',
-                    { selected: selectedImageIds.includes(image.id) },
-                    { highlighted: highlightedImageId === image.id },
-                  ]"
-                  @click="toggleImageSelection(image.id)"
-                  class="image-card-container"
-                  :data-image-id="image.id"
-                >
-                  <NImage
-                    :src="image.url"
-                    object-fit="cover"
-                    :alt="'生成圖像'"
-                    class="generated-image"
-                    preview-disabled
-                  />
-                  <div class="image-overlay">
-                    <div
-                      class="selection-indicator"
-                      v-if="selectedImageIds.includes(image.id)"
+      <!-- 圖片部分，不再包在NSpin中 -->
+      <div v-if="generatedImages.length" class="images-section">
+        <!-- 將生成的圖片按批次分組顯示 -->
+        <div
+          v-for="(batch, batchIndex) in imageBatches"
+          :key="batchIndex"
+          class="image-batch"
+        >
+          <!-- 批次標題和時間戳 -->
+          <div class="generation-batch-title">
+            <h4>生成於 {{ formatTimestamp(batch[0]?.createdAt) }}</h4>
+          </div>
+          <!-- 水平滑動容器 -->
+          <div class="horizontal-scroll-container">
+            <div class="images-row">
+              <div
+                v-for="image in batch"
+                :key="image.id"
+                :class="[
+                  'image-card',
+                  { selected: selectedImageIds.includes(image.id) },
+                  { highlighted: highlightedImageId === image.id },
+                ]"
+                @click="toggleImageSelection(image.id)"
+                class="image-card-container"
+                :data-image-id="image.id"
+              >
+                <NImage
+                  :src="image.url"
+                  object-fit="cover"
+                  :alt="'生成圖像'"
+                  class="generated-image"
+                  preview-disabled
+                />
+                <div class="image-overlay">
+                  <div
+                    class="selection-indicator"
+                    v-if="selectedImageIds.includes(image.id)"
+                  >
+                    <NIcon size="24" class="check-icon">✓</NIcon>
+                  </div>
+                  <div class="bottom-right-actions">
+                    <NButton
+                      circle
+                      quaternary
+                      @click.stop="previewImage(image.url)"
+                      class="action-button"
                     >
-                      <NIcon size="24" class="check-icon">✓</NIcon>
-                    </div>
-                    <div class="bottom-right-actions">
-                      <NButton
-                        circle
-                        quaternary
-                        @click.stop="previewImage(image.url)"
-                        class="action-button"
-                      >
-                        <template #icon>👁️</template>
-                      </NButton>
-                      <NButton
-                        circle
-                        quaternary
-                        @click.stop="toggleSaveImage(image.id)"
-                        :class="[
-                          'action-button',
-                          { saved: savedImageIds.includes(image.id) },
-                        ]"
-                      >
-                        <template #icon>💾</template>
-                      </NButton>
-                      <div
-                        class="save-indicator"
-                        v-if="savedImageIds.includes(image.id)"
-                      >
-                        <NIcon size="24" class="save-icon">✓</NIcon>
-                      </div>
+                      <template #icon>👁️</template>
+                    </NButton>
+                    <NButton
+                      circle
+                      quaternary
+                      @click.stop="toggleSaveImage(image.id)"
+                      :class="[
+                        'action-button',
+                        { saved: savedImageIds.includes(image.id) },
+                      ]"
+                    >
+                      <template #icon>💾</template>
+                    </NButton>
+                    <div
+                      class="save-indicator"
+                      v-if="savedImageIds.includes(image.id)"
+                    >
+                      <NIcon size="24" class="save-icon">✓</NIcon>
                     </div>
                   </div>
                 </div>
@@ -190,11 +201,11 @@
             </div>
           </div>
         </div>
-        <NEmpty
-          v-else-if="!loading"
-          description="尚未生成圖像，請先進行設計輸入"
-        />
-      </NSpin>
+      </div>
+      <NEmpty
+        v-else-if="!loading"
+        description="尚未生成圖像，請先進行設計輸入"
+      />
     </NLayoutContent>
 
     <!-- 圖像預覽對話框 -->
@@ -221,7 +232,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useProjectStore } from "../stores/project";
 import { useImageStore } from "../stores/image";
@@ -249,13 +260,16 @@ const projectStore = useProjectStore();
 const imageStore = useImageStore();
 const message = (window.$message = useMessage());
 
-// 頁面狀態
 const loading = ref(false);
 const projectId = computed(() => route.params.projectId);
 const showPreviewModal = ref(false);
 const previewImageUrl = ref("");
 const selectedImages = ref([]);
 const editablePrompt = ref("");
+
+// 添加進度條相關的狀態
+const generationProgress = ref(0);
+const progressTimer = ref(null);
 
 const updatePrompt = () => {
   imageStore.updateGenerationParams({ prompt: editablePrompt.value });
@@ -379,7 +393,7 @@ const scrollToImage = (imageId) => {
 };
 
 // 初始載入數據
-onMounted(() => {
+onMounted(async () => {
   if (projectId.value && projectId.value !== "temp") {
     loading.value = true;
     projectStore
@@ -390,9 +404,153 @@ onMounted(() => {
   // 初始化可編輯提示詞
   editablePrompt.value = prompt.value;
 
-  if (generatedImages.value.length === 0 && !imageStore.loading) {
-    regenerateImages();
+  // 查找 taskId （從路由參數或state）
+  const taskId =
+    route.query.taskId ||
+    route.params.taskId ||
+    (route.state && route.state.taskId) ||
+    (route.fullPath &&
+      route.fullPath.includes("taskId=") &&
+      route.fullPath.split("taskId=")[1].split("&")[0]);
+
+  console.log("Task ID from previous page:", taskId);
+
+  if (taskId) {
+    await fetchImagesFromTaskId(taskId);
+  } else {
+    console.log("No taskId found, showing default or empty state");
   }
+});
+
+const fetchImagesFromTaskId = async (taskId) => {
+  if (!taskId) return;
+
+  try {
+    loading.value = true;
+    console.log("Fetching images for task:", taskId);
+
+    // 重置進度條並開始進度動畫
+    generationProgress.value = 0;
+    startProgressAnimation();
+
+    // 訪問 API 端點獲取任務結果
+    const response = await fetch(
+      `https://ec2.sausagee.party/img/result/${taskId}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API returned status ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log("Task result:", data);
+
+    // 檢查任務狀態
+    if (data.status === "done" && data.urls && data.urls.length > 0) {
+      // 設置進度為100%
+      generationProgress.value = 100;
+      clearProgressAnimation();
+
+      // 構建圖像物件並添加到生成的圖像集合中
+      const newImages = data.urls.map((url, index) => {
+        // 從 URL 中獲取圖像 ID
+        const id =
+          url.split("/").pop().split(".")[0] || `task-${taskId}-${index}`;
+
+        return {
+          id,
+          url: url.startsWith("http")
+            ? url
+            : `https://ec2.sausagee.party${url}`,
+          prompt: editablePrompt.value,
+          projectId: projectId.value !== "temp" ? projectId.value : null,
+          parameters: {
+            ...generationParams.value,
+            taskId: taskId,
+          },
+          createdAt: new Date().toISOString(),
+        };
+      });
+
+      // 添加到 image store 取代原有的 dummy data
+      if (typeof imageStore.addGeneratedImages === "function") {
+        // 如果 store 有 addGeneratedImages 方法
+        imageStore.addGeneratedImages(newImages);
+      } else {
+        // 否則直接更新 generatedImages
+        imageStore.generatedImages = [...newImages];
+      }
+
+      console.log(`成功載入 ${newImages.length} 張生成的圖像`);
+    } else if (data.status === "queued" || data.status === "processing") {
+      // 如果任務仍在進行中，設置輪詢 - 不顯示message提示
+      console.log("圖像生成任務正在進行中，請稍候...");
+
+      // 增加進度顯示
+      generationProgress.value = Math.min(generationProgress.value + 5, 90);
+
+      // 繼續輪詢
+      setTimeout(() => fetchImagesFromTaskId(taskId), 1500);
+    } else {
+      // 任務失敗或其他狀態
+      clearProgressAnimation();
+      message.error(`圖像生成任務狀態: ${data.status}`);
+    }
+  } catch (error) {
+    console.error("Fetching images failed:", error);
+    message.error("獲取生成的圖像失敗: " + error.message);
+    clearProgressAnimation();
+  } finally {
+    if (generationProgress.value >= 100) {
+      loading.value = false;
+      clearProgressAnimation();
+    }
+  }
+};
+
+// 啟動進度條動畫
+const startProgressAnimation = () => {
+  // 清除可能存在的計時器
+  clearProgressAnimation();
+
+  // 設置新的計時器，模擬進度增加
+  progressTimer.value = setInterval(() => {
+    // 非線性進度增加，開始快，接近90%時變慢
+    if (generationProgress.value < 30) {
+      generationProgress.value += 3;
+    } else if (generationProgress.value < 60) {
+      generationProgress.value += 2;
+    } else if (generationProgress.value < 85) {
+      generationProgress.value += 1;
+    } else if (generationProgress.value < 90) {
+      generationProgress.value += 0.5;
+    }
+
+    // 限制最大進度為90%，直到任務真正完成
+    if (generationProgress.value >= 90) {
+      generationProgress.value = 90;
+      clearProgressAnimation();
+    }
+  }, 300);
+};
+
+// 清除進度條計時器
+const clearProgressAnimation = () => {
+  if (progressTimer.value) {
+    clearInterval(progressTimer.value);
+    progressTimer.value = null;
+  }
+};
+
+// 組件卸載時清理計時器
+onUnmounted(() => {
+  clearProgressAnimation();
 });
 
 // 切換圖像選擇狀態
@@ -505,8 +663,8 @@ const saveAndContinue = () => {
       imageId: savedImage.id,
     },
     state: {
-      selectedImage: savedImage
-    }
+      selectedImage: savedImage,
+    },
   });
 };
 
