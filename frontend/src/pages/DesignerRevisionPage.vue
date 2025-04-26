@@ -1,221 +1,202 @@
 <template>
   <div class="revision-page">
-    <NLayout>
-      <NLayoutHeader class="page-header">
-        <div class="header-content">
-          <div class="header-left">
-            <NButton @click="goBack" quaternary circle>
-              <template #icon>
-                <div class="icon-container">&#8592;</div>
-              </template>
-            </NButton>
-            <h1>設計修訂</h1>
-          </div>
-          <div class="header-right">
-            <NButton @click="saveEdits"> 保存編輯 </NButton>
-            <NButton
-              type="primary"
-              @click="applyInpainting"
-              :loading="inpaintingLoading"
-            >
-              局部重生成
-            </NButton>
+    <DesignerRevisionPageHeader
+      :inpaintingLoading="inpaintingLoading"
+      @save-edits="saveEdits"
+      @apply-inpainting="applyInpainting"
+    />
+
+    <NLayoutContent class="page-content">
+      <NSpin :show="loading || inpaintingLoading">
+        <div v-if="inpaintingLoading" class="inpainting-progress">
+          <div class="progress-container">
+            <h3>正在進行局部重生成，請稍候...</h3>
+            <NProgress
+              type="line"
+              :percentage="imageStore.generationProgress"
+              :height="20"
+              :processing="true"
+            />
           </div>
         </div>
-      </NLayoutHeader>
 
-      <NLayoutContent class="page-content">
-        <NSpin :show="loading || inpaintingLoading">
-          <div v-if="inpaintingLoading" class="inpainting-progress">
-            <div class="progress-container">
-              <h3>正在進行局部重生成，請稍候...</h3>
-              <NProgress
-                type="line"
-                :percentage="imageStore.generationProgress"
-                :height="20"
-                :processing="true"
-              />
-            </div>
-          </div>
-
-          <template v-else>
-            <NGrid cols="1 l:2" x-gap="24" y-gap="24">
-              <NGridItem class="editor-grid-item">
-                <div class="editor-container">
-                  <div class="editor-header">
-                    <h2>圖像編輯</h2>
-                    <div class="tool-selection">
-                      <NButtonGroup>
-                        <NButton
-                          :type="
-                            currentTool === 'brush' ? 'primary' : 'default'
-                          "
-                          @click="setTool('brush')"
-                        >
-                          畫筆
-                        </NButton>
-                        <NButton
-                          :type="
-                            currentTool === 'eraser' ? 'primary' : 'default'
-                          "
-                          @click="setTool('eraser')"
-                        >
-                          橡皮擦
-                        </NButton>
-                      </NButtonGroup>
-                    </div>
-                  </div>
-
-                  <div class="editor-canvas-container">
-                    <canvas
-                      ref="editorCanvas"
-                      class="editor-canvas"
-                      @mousedown="startDrawing"
-                      @mousemove="draw"
-                      @mouseup="stopDrawing"
-                      @mouseleave="stopDrawing"
-                      @touchstart="handleTouchStart"
-                      @touchmove="handleTouchMove"
-                      @touchend="handleTouchEnd"
-                    ></canvas>
-                  </div>
-
-                  <div class="editor-tools">
-                    <div class="tool-group">
-                      <label>筆刷大小</label>
-                      <NSlider
-                        v-model:value="brushSize"
-                        :min="1"
-                        :max="50"
-                        :step="1"
-                      />
-                    </div>
-
-                    <div class="tool-group">
-                      <label>筆刷顏色</label>
-                      <div class="color-buttons">
-                        <div
-                          v-for="color in brushColors"
-                          :key="color"
-                          class="color-button"
-                          :style="{ backgroundColor: color }"
-                          :class="{ active: brushColor === color }"
-                          @click="brushColor = color"
-                        ></div>
-                      </div>
-                    </div>
-
-                    <div class="action-buttons">
-                      <NButton @click="clearCanvas">清除畫布</NButton>
-                      <NButton @click="undo" :disabled="historyIndex <= 0"
-                        >撤銷</NButton
-                      >
+        <template v-else>
+          <NGrid cols="1 l:2" x-gap="24" y-gap="24">
+            <NGridItem class="editor-grid-item">
+              <div class="editor-container">
+                <div class="editor-header">
+                  <h2>圖像編輯</h2>
+                  <div class="tool-selection">
+                    <NButtonGroup>
                       <NButton
-                        @click="redo"
-                        :disabled="historyIndex >= history.length - 1"
-                        >重做</NButton
+                        :type="
+                          currentTool === 'brush' ? 'primary' : 'default'
+                        "
+                        @click="setTool('brush')"
                       >
-                    </div>
+                        畫筆
+                      </NButton>
+                      <NButton
+                        :type="
+                          currentTool === 'eraser' ? 'primary' : 'default'
+                        "
+                        @click="setTool('eraser')"
+                      >
+                        橡皮擦
+                      </NButton>
+                    </NButtonGroup>
                   </div>
                 </div>
-              </NGridItem>
 
-              <NGridItem>
-                <div class="settings-container">
-                  <div class="original-image">
-                    <h2>原始圖像</h2>
-                    <NImage
-                      v-if="originalImage"
-                      :src="originalImage.url"
-                      object-fit="contain"
-                      :width="400"
-                      :alt="'原始圖像'"
+                <div class="editor-canvas-container">
+                  <canvas
+                    ref="editorCanvas"
+                    class="editor-canvas"
+                    @mousedown="startDrawing"
+                    @mousemove="draw"
+                    @mouseup="stopDrawing"
+                    @mouseleave="stopDrawing"
+                    @touchstart="handleTouchStart"
+                    @touchmove="handleTouchMove"
+                    @touchend="handleTouchEnd"
+                  ></canvas>
+                </div>
+
+                <div class="editor-tools">
+                  <div class="tool-group">
+                    <label>筆刷大小</label>
+                    <NSlider
+                      v-model:value="brushSize"
+                      :min="1"
+                      :max="50"
+                      :step="1"
                     />
                   </div>
 
-                  <div class="inpainting-settings">
-                    <h2>重生成設置</h2>
-
-                    <NForm>
-                      <NFormItem label="提示詞">
-                        <NInput
-                          v-model:value="inpaintingPrompt"
-                          type="textarea"
-                          :autosize="{ minRows: 3, maxRows: 6 }"
-                          placeholder="描述你希望局部區域變成的樣子"
-                        />
-                      </NFormItem>
-
-                      <NFormItem label="重生成強度">
-                        <NSlider
-                          v-model:value="inpaintingStrength"
-                          :min="0"
-                          :max="100"
-                          :step="1"
-                        />
-                      </NFormItem>
-
-                      <NFormItem label="步數">
-                        <NSlider
-                          v-model:value="inpaintingSteps"
-                          :min="10"
-                          :max="50"
-                          :step="1"
-                        />
-                      </NFormItem>
-
-                      <NFormItem label="提示詞引導">
-                        <NSlider
-                          v-model:value="inpaintingGuidance"
-                          :min="1"
-                          :max="20"
-                          :step="0.1"
-                        />
-                      </NFormItem>
-                    </NForm>
+                  <div class="tool-group">
+                    <label>筆刷顏色</label>
+                    <div class="color-buttons">
+                      <div
+                        v-for="color in brushColors"
+                        :key="color"
+                        class="color-button"
+                        :style="{ backgroundColor: color }"
+                        :class="{ active: brushColor === color }"
+                        @click="brushColor = color"
+                      ></div>
+                    </div>
                   </div>
 
-                  <div
-                    v-if="inpaintingResults.length"
-                    class="inpainting-results"
-                  >
-                    <h2>重生成結果</h2>
-                    <NGrid x-gap="16" y-gap="16" cols="1 s:2">
-                      <NGridItem
-                        v-for="(result, index) in inpaintingResults"
-                        :key="index"
-                      >
-                        <div
-                          class="result-card"
-                          :class="{ selected: selectedResultIndex === index }"
-                          @click="selectResult(index)"
-                        >
-                          <NImage
-                            :src="result.url"
-                            object-fit="cover"
-                            :alt="'重生成結果'"
-                          />
-                          <div class="result-actions">
-                            <NButton
-                              circle
-                              quaternary
-                              @click.stop="useResult(result)"
-                              title="使用此結果"
-                            >
-                              ✓
-                            </NButton>
-                          </div>
-                        </div>
-                      </NGridItem>
-                    </NGrid>
+                  <div class="action-buttons">
+                    <NButton @click="clearCanvas">清除畫布</NButton>
+                    <NButton @click="undo" :disabled="historyIndex <= 0"
+                      >撤銷</NButton
+                    >
+                    <NButton
+                      @click="redo"
+                      :disabled="historyIndex >= history.length - 1"
+                      >重做</NButton
+                    >
                   </div>
                 </div>
-              </NGridItem>
-            </NGrid>
-          </template>
-        </NSpin>
-      </NLayoutContent>
-    </NLayout>
+              </div>
+            </NGridItem>
+
+            <NGridItem>
+              <div class="settings-container">
+                <div class="original-image">
+                  <h2>原始圖像</h2>
+                  <NImage
+                    v-if="originalImage"
+                    :src="originalImage.url"
+                    object-fit="contain"
+                    :width="400"
+                    :alt="'原始圖像'"
+                  />
+                </div>
+
+                <div class="inpainting-settings">
+                  <h2>重生成設置</h2>
+
+                  <NForm>
+                    <NFormItem label="提示詞">
+                      <NInput
+                        v-model:value="inpaintingPrompt"
+                        type="textarea"
+                        :autosize="{ minRows: 3, maxRows: 6 }"
+                        placeholder="描述你希望局部區域變成的樣子"
+                      />
+                    </NFormItem>
+
+                    <NFormItem label="重生成強度">
+                      <NSlider
+                        v-model:value="inpaintingStrength"
+                        :min="0"
+                        :max="100"
+                        :step="1"
+                      />
+                    </NFormItem>
+
+                    <NFormItem label="步數">
+                      <NSlider
+                        v-model:value="inpaintingSteps"
+                        :min="10"
+                        :max="50"
+                        :step="1"
+                      />
+                    </NFormItem>
+
+                    <NFormItem label="提示詞引導">
+                      <NSlider
+                        v-model:value="inpaintingGuidance"
+                        :min="1"
+                        :max="20"
+                        :step="0.1"
+                      />
+                    </NFormItem>
+                  </NForm>
+                </div>
+
+                <div
+                  v-if="inpaintingResults.length"
+                  class="inpainting-results"
+                >
+                  <h2>重生成結果</h2>
+                  <NGrid x-gap="16" y-gap="16" cols="1 s:2">
+                    <NGridItem
+                      v-for="(result, index) in inpaintingResults"
+                      :key="index"
+                    >
+                      <div
+                        class="result-card"
+                        :class="{ selected: selectedResultIndex === index }"
+                        @click="selectResult(index)"
+                      >
+                        <NImage
+                          :src="result.url"
+                          object-fit="cover"
+                          :alt="'重生成結果'"
+                        />
+                        <div class="result-actions">
+                          <NButton
+                            circle
+                            quaternary
+                            @click.stop="useResult(result)"
+                            title="使用此結果"
+                          >
+                            ✓
+                          </NButton>
+                        </div>
+                      </div>
+                    </NGridItem>
+                  </NGrid>
+                </div>
+              </div>
+            </NGridItem>
+          </NGrid>
+        </template>
+      </NSpin>
+    </NLayoutContent>
   </div>
 </template>
 
@@ -225,8 +206,6 @@ import { useRoute, useRouter } from "vue-router";
 import { useProjectStore } from "../stores/project";
 import { useImageStore } from "../stores/image";
 import {
-  NLayout,
-  NLayoutHeader,
   NLayoutContent,
   NButton,
   NButtonGroup,
@@ -240,6 +219,7 @@ import {
   NInput,
   NSlider,
 } from "naive-ui";
+import DesignerRevisionPageHeader from "../components/headers/DesignerRevisionPageHeader.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -610,63 +590,18 @@ const saveEdits = async () => {
     console.error("保存編輯失敗:", error);
   }
 };
-
-// 返回到生成頁面
-const goBack = () => {
-  router.push({
-    name: "ai-generate",
-    params: {
-      projectId: projectId.value !== "temp" ? projectId.value : "temp",
-    },
-  });
-};
 </script>
 
 <style scoped>
 .revision-page {
   min-height: 100vh;
-}
-
-.page-header {
-  padding: 16px 24px;
-  background-color: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-right {
-  display: flex;
-  gap: 12px;
-}
-
-.icon-container {
-  font-size: 18px;
-  line-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background-color: var(--bg-color, #f5f7fa);
 }
 
 .page-content {
-  padding: 24px;
-  max-width: 1400px;
-  margin: 0 auto;
+  padding: 0 24px 24px 24px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .inpainting-progress {
@@ -808,5 +743,34 @@ const goBack = () => {
 
 .result-card:hover .result-actions {
   opacity: 1;
+}
+
+/* 深色模式適配 */
+:root.dark .editor-container {
+  background-color: #333;
+}
+
+:root.dark .editor-header,
+:root.dark .editor-tools {
+  background-color: #2a2a2a;
+  border-color: #444;
+}
+
+:root.dark .editor-canvas {
+  background-color: #222;
+}
+
+:root.dark .color-button {
+  border-color: #555;
+}
+
+:root.dark .color-button.active {
+  border-color: #ddd;
+}
+
+:root.dark .original-image,
+:root.dark .inpainting-settings,
+:root.dark .inpainting-results {
+  background-color: #2a2a2a;
 }
 </style>

@@ -1,25 +1,12 @@
 <template>
   <div class="design-input-page">
-    <NLayoutHeader class="page-header">
-      <div class="header-content">
-        <div class="header-left">
-          <NButton @click="goBack" quaternary circle>
-            <template #icon>
-              <div class="icon-container">&#8592;</div>
-            </template>
-          </NButton>
-          <h1>{{ project ? project.name : '新設計' }}</h1>
-        </div>
-        <div class="header-right">
-          <NButton @click="clearForm">
-            清空
-          </NButton>
-          <NButton type="primary" @click="startGeneration" :loading="loading" :disabled="!isFormValid">
-            開始生成
-          </NButton>
-        </div>
-      </div>
-    </NLayoutHeader>
+    <DesignInputPageHeader 
+      :project="project"
+      :loading="loading"
+      :isFormValid="!!form.prompt.trim()"
+      @clear-form="clearForm"
+      @start-generation="startGeneration"
+    />
     
     <NLayoutContent class="page-content">
       <NSpin :show="loading">
@@ -199,48 +186,249 @@
   </div>
 </template>
 
+<script setup>
+import { ref, computed, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useProjectStore } from "../stores/project";
+import { useImageStore } from "../stores/image";
+import {
+  NLayoutContent,
+  NButton,
+  NGrid,
+  NGridItem,
+  NImage,
+  NSpin,
+  NCard,
+  NModal,
+  NForm,
+  NFormItem,
+  NInput,
+  NSelect,
+  NSlider,
+  NInputNumber,
+  NCheckbox,
+  NTooltip,
+  NUpload
+} from "naive-ui";
+import DesignInputPageHeader from "../components/headers/DesignInputPageHeader.vue";
+
+const route = useRoute();
+const router = useRouter();
+const projectStore = useProjectStore();
+const imageStore = useImageStore();
+
+// 表單參考
+const formRef = ref(null);
+
+// 頁面狀態
+const loading = ref(false);
+const projectId = computed(() => route.params.projectId);
+const project = computed(() => projectStore.currentProject);
+const referenceImages = computed(() => imageStore.referenceImages);
+const showUploadModal = ref(false);
+const uploadRef = ref(null);
+const uploadFile = ref(null);
+const uploadFileUrl = ref("");
+
+// 表單數據
+const form = ref({
+  prompt: "",
+  negativePrompt: "",
+  style: null,
+  size: "1024x1024",
+  count: 4,
+  cfgScale: 7.5,
+  steps: 30,
+  seed: -1,
+  randomizeSeed: true,
+  referenceStrength: 60,
+  model: "default",
+});
+
+// 表單驗證規則
+const rules = {
+  prompt: {
+    required: true,
+    message: "請輸入提示詞",
+    trigger: ["blur", "input"],
+  },
+};
+
+// 風格選項
+const styleOptions = [
+  { label: "現代簡約", value: "modern_minimalist" },
+  { label: "復古懷舊", value: "retro_vintage" },
+  { label: "自然有機", value: "natural_organic" },
+  { label: "科技未來", value: "tech_futuristic" },
+  { label: "工業風格", value: "industrial" },
+  { label: "北歐風格", value: "scandinavian" },
+  { label: "熱帶度假", value: "tropical_resort" },
+];
+
+// 尺寸選項
+const sizeOptions = [
+  { label: "1:1 (1024x1024)", value: "1024x1024" },
+  { label: "16:9 (1920x1080)", value: "1920x1080" },
+  { label: "9:16 (1080x1920)", value: "1080x1920" },
+  { label: "4:3 (1600x1200)", value: "1600x1200" },
+  { label: "3:4 (1200x1600)", value: "1200x1600" },
+];
+
+// 模型選項
+const modelOptions = [
+  { label: "預設模型", value: "default" },
+  { label: "高品質", value: "high_quality" },
+  { label: "寫實風格", value: "realistic" },
+  { label: "插畫風格", value: "illustration" },
+  { label: "水彩風格", value: "watercolor" },
+];
+
+// 選擇的模型描述
+const selectedModelDescription = computed(() => {
+  switch (form.value.model) {
+    case "high_quality":
+      return "適合需要高細節的設計，生成時間較長";
+    case "realistic":
+      return "擅長生成逼真的場景和物品";
+    case "illustration":
+      return "生成插畫風格的圖像，適合用於平面設計";
+    case "watercolor":
+      return "生成帶有水彩藝術風格的圖像";
+    default:
+      return "適用於大多數設計任務的通用模型";
+  }
+});
+
+// 初始載入數據
+onMounted(async () => {
+  loading.value = true;
+  try {
+    // 如果有項目 ID，加載項目數據
+    if (projectId.value && projectId.value !== "temp") {
+      await projectStore.fetchProjectById(projectId.value);
+      
+      // 如果項目有初始參數，使用它們
+      if (project.value && project.value.designParams) {
+        form.value = {
+          ...form.value,
+          ...project.value.designParams,
+        };
+      }
+    }
+
+    // 獲取存儲的生成參數
+    const storedParams = imageStore.generationParams;
+    if (storedParams) {
+      form.value = {
+        ...form.value,
+        prompt: storedParams.prompt || form.value.prompt,
+        negativePrompt: storedParams.negativePrompt || form.value.negativePrompt,
+        cfgScale: storedParams.cfgScale || form.value.cfgScale,
+        steps: storedParams.steps || form.value.steps,
+        seed: storedParams.seed || form.value.seed,
+      };
+    }
+  } catch (error) {
+    console.error("載入項目數據失敗:", error);
+  } finally {
+    loading.value = false;
+  }
+});
+
+// 開啟參考圖像上傳對話框
+const openReferenceUpload = () => {
+  showUploadModal.value = true;
+  uploadFile.value = null;
+  uploadFileUrl.value = "";
+};
+
+// 處理上傳變化
+const handleUploadChange = (options) => {
+  const { file } = options;
+  uploadFile.value = file;
+  
+  // 獲取文件 URL
+  if (file.file) {
+    uploadFileUrl.value = URL.createObjectURL(file.file);
+  }
+};
+
+// 添加參考圖像
+const addReferenceImage = () => {
+  if (uploadFileUrl.value) {
+    imageStore.setReferenceImages([...referenceImages.value, uploadFileUrl.value]);
+    showUploadModal.value = false;
+  }
+};
+
+// 移除參考圖像
+const removeReferenceImage = (index) => {
+  const newImages = [...referenceImages.value];
+  newImages.splice(index, 1);
+  imageStore.setReferenceImages(newImages);
+};
+
+// 清除所有參考圖像
+const clearReferenceImages = () => {
+  imageStore.setReferenceImages([]);
+};
+
+// 清空表單
+const clearForm = () => {
+  form.value = {
+    prompt: "",
+    negativePrompt: "",
+    style: null,
+    size: "1024x1024",
+    count: 4,
+    cfgScale: 7.5,
+    steps: 30,
+    seed: -1,
+    randomizeSeed: true,
+    referenceStrength: 60,
+    model: "default",
+  };
+};
+
+// 開始生成
+const startGeneration = () => {
+  if (!form.value.prompt.trim()) return;
+
+  // 如果選擇隨機種子，生成一個新的隨機種子
+  if (form.value.randomizeSeed) {
+    form.value.seed = Math.floor(Math.random() * 1000000);
+  }
+
+  // 保存生成參數
+  imageStore.setGenerationParams({
+    prompt: form.value.prompt,
+    negativePrompt: form.value.negativePrompt,
+    style: form.value.style,
+    size: form.value.size,
+    steps: form.value.steps,
+    cfgScale: form.value.cfgScale,
+    seed: form.value.seed,
+    batchCount: form.value.count,
+    model: form.value.model,
+  });
+
+  // 導航到生成頁面
+  router.push({
+    name: "ai-generate",
+    params: { projectId: projectId.value !== "temp" ? projectId.value : "temp" },
+  });
+};
+</script>
+
 <style scoped>
 .design-input-page {
   min-height: 100vh;
   width: 100%;
-}
-
-.page-header {
-  padding: 16px 24px;
-  background-color: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  width: 100%;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  padding: 0 16px;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-right {
-  display: flex;
-  gap: 12px;
-}
-
-.icon-container {
-  font-size: 18px;
-  line-height: 1;
+  background-color: var(--bg-color, #f5f7fa);
 }
 
 .page-content {
-  padding: 24px;
+  padding: 0 24px 24px 24px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -346,5 +534,18 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+/* 深色模式適配 */
+:root.dark .model-description {
+  color: #aaa;
+}
+
+:root.dark .empty-reference {
+  color: #aaa;
+}
+
+:root.dark .upload-trigger {
+  border-color: #444;
 }
 </style>

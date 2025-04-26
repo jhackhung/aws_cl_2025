@@ -1,21 +1,6 @@
 <template>
   <div class="gallery-page">
-    <NLayoutHeader class="page-header">
-      <div class="header-content">
-        <div class="title-section">
-          <h1>設計畫廊</h1>
-          <p class="subtitle">瀏覽您的設計作品</p>
-        </div>
-        <NButton type="primary" size="large" @click="goToCreateImage">
-          <template #icon>
-            <div class="button-icon">
-              <NIcon><PlusOutlined /></NIcon>
-            </div>
-          </template>
-          創建新圖像
-        </NButton>
-      </div>
-    </NLayoutHeader>
+    <GalleryPageHeader @go-to-create-image="goToCreateImage" />
 
     <NLayoutContent class="page-content">
       <div class="content-wrapper">
@@ -273,8 +258,6 @@ import { useProjectStore } from "../stores/project";
 import { useImageStore } from "../stores/image";
 import { useMessage } from "naive-ui";
 import {
-  NLayout,
-  NLayoutHeader,
   NLayoutContent,
   NButton,
   NGrid,
@@ -287,16 +270,17 @@ import {
   NTag,
   NInput,
   NIcon,
-  NPagination,
+  NPagination
 } from "naive-ui";
 import {
   PlusOutlined,
   SearchOutlined,
   EyeOutlined,
   SyncOutlined,
-  DeleteOutlined,
+  DeleteOutlined
 } from "@vicons/antd";
 import TagSelector from "../components/ui/TagSelector.vue";
+import GalleryPageHeader from "../components/headers/GalleryPageHeader.vue";
 
 const router = useRouter();
 const projectStore = useProjectStore();
@@ -436,7 +420,7 @@ const allFilteredImages = computed(() => {
   // 按標籤篩選
   if (selectedTags.value.length > 0) {
     images = images.filter((image) =>
-      image.tags?.some((tag) => selectedTags.value.includes(tag))
+      selectedTags.value.every((tag) => image.tags?.includes(tag))
     );
   }
 
@@ -599,62 +583,18 @@ const goToCreateImage = () => {
 .gallery-page {
   min-height: 100vh;
   width: 100%;
-  background-color: #f5f7fa;
-}
-
-.page-header {
-  padding: 16px 24px;
-  background-color: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  width: 100%;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 16px;
-}
-
-.title-section {
-  display: flex;
-  flex-direction: column;
-}
-
-.title-section h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-  color: #333;
-}
-
-.subtitle {
-  margin: 4px 0 0 0;
-  font-size: 14px;
-  color: #666;
-}
-
-.button-icon {
-  margin-right: 6px;
-  display: flex;
-  align-items: center;
+  background-color: var(--bg-color, #f5f7fa);
 }
 
 .page-content {
-  padding: 32px 0;
+  padding: 0 24px 24px 24px;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .content-wrapper {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 24px;
 }
 
 .filters-section {
@@ -866,6 +806,32 @@ const goToCreateImage = () => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+/* 深色模式適配 */
+:root.dark .filters-section {
+  background-color: #2a2a2a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+:root.dark .filter-header h2 {
+  color: #e0e0e0;
+}
+
+:root.dark .filter-label {
+  color: #aaa;
+}
+
+:root.dark .image-preview-container {
+  background-color: #333;
+}
+
+:root.dark .parameter-item {
+  border-color: #444;
+}
+
+:root.dark .param-label {
+  color: #aaa;
 }
 
 @media (max-width: 768px) {
