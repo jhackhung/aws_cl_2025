@@ -29,17 +29,13 @@
                   <div class="tool-selection">
                     <NButtonGroup>
                       <NButton
-                        :type="
-                          currentTool === 'brush' ? 'primary' : 'default'
-                        "
+                        :type="currentTool === 'brush' ? 'primary' : 'default'"
                         @click="setTool('brush')"
                       >
                         畫筆
                       </NButton>
                       <NButton
-                        :type="
-                          currentTool === 'eraser' ? 'primary' : 'default'
-                        "
+                        :type="currentTool === 'eraser' ? 'primary' : 'default'"
                         @click="setTool('eraser')"
                       >
                         橡皮擦
@@ -157,10 +153,7 @@
                   </NForm>
                 </div>
 
-                <div
-                  v-if="inpaintingResults.length"
-                  class="inpainting-results"
-                >
+                <div v-if="inpaintingResults.length" class="inpainting-results">
                   <h2>重生成結果</h2>
                   <NGrid x-gap="16" y-gap="16" cols="1 s:2">
                     <NGridItem
