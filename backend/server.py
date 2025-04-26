@@ -459,7 +459,7 @@ async def create_template(
         # Copy project images
         copy_images_query = """
         INSERT INTO project_images (project_id, image_id)
-        SELECT %s, image_id FROM project_images WHERE project_id = %s
+        SELECT %s, image_id FROM images WHERE project_id = %s
         """
         cursor.execute(copy_images_query, (template_id, projectId))
 
@@ -515,7 +515,7 @@ async def get_project(id: str):
             GROUP_CONCAT(DISTINCT pi.image_id) as image_ids
         FROM projects p
         LEFT JOIN project_tags pt ON p.id = pt.project_id
-        LEFT JOIN project_images pi ON p.id = pi.project_id
+        LEFT JOIN images pi ON p.id = pi.project_id
         WHERE p.id = %s
         GROUP BY p.id, p.name, p.template_id, p.created_at, p.modified_at, p.readonly
         """
@@ -666,7 +666,6 @@ async def get_image_result(taskId: str):
             task_status = "error"
     task_status["urls"]=task_result.get(taskId)
     return task_status
-
 @app.get("/thumb/{projectId}")
 async def get_thumb(projectId: str):
     try:
@@ -674,8 +673,8 @@ async def get_thumb(projectId: str):
         
         # Get first image ID from project
         query = """
-        SELECT image_id 
-        FROM project_images 
+        SELECT id 
+        FROM images 
         WHERE project_id = %s 
         ORDER BY id ASC 
         LIMIT 1
@@ -686,10 +685,24 @@ async def get_thumb(projectId: str):
         cursor.close()
         
         if not result:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "No images found in project"}
-            )
+            # Return default thumbnail from static folder
+            default_thumb_path = "static/default_thumb.webp"
+            if os.path.exists(default_thumb_path):
+                with open(default_thumb_path, "rb") as f:
+                    image_data = f.read()
+                return Response(
+                    content=image_data,
+                    media_type="image/webp",
+                    headers={
+                        "Cache-Control": "max-age=3600",
+                        "Content-Disposition": "inline; filename=default_thumb.webp"
+                    }
+                )
+            else:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": "No images found and default thumbnail missing"}
+                )
             
         # Reuse get_image_file to return the actual image
         image_id = result['image_id']
