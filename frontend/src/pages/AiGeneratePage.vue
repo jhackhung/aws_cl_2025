@@ -40,6 +40,15 @@
             >
               Generate
             </NButton>
+            <NButton
+              class="save-button"
+              type="primary"
+              @click="saveImages"
+              :disabled="savedImageIds.length === 0"
+              title="保存圖片"
+            >
+              Save ({{ savedImageIds.length }})
+            </NButton>
           </div>
 
           <!-- Images status bars -->
@@ -229,6 +238,7 @@ import {
   NEmpty,
   NIcon,
   NInput,
+  useMessage,
 } from "naive-ui";
 import { BulbOutlined } from "@vicons/antd";
 import AiGeneratePageHeader from "../components/headers/AiGeneratePageHeader.vue";
@@ -237,6 +247,7 @@ const route = useRoute();
 const router = useRouter();
 const projectStore = useProjectStore();
 const imageStore = useImageStore();
+const message = (window.$message = useMessage());
 
 // 頁面狀態
 const loading = ref(false);
@@ -451,6 +462,22 @@ const regenerateSelected = async () => {
   }
 };
 
+const saveImages = () => {
+  if (savedImageIds.value.length === 0) {
+    // 如果沒有已儲存的圖片，顯示提示並返回
+    window.$message.warning("請先選擇並儲存至少一張圖片");
+    return;
+  }
+
+  try {
+  } catch (error) {
+    console.error("保存圖片失敗:", error);
+  } finally {
+    // 清空選擇的圖片ID
+    selectedImageIds.value = [];
+  }
+};
+
 // 保存並繼續
 const saveAndContinue = () => {
   if (selectedImages.value.length === 0) return;
@@ -654,6 +681,22 @@ const optimizePrompt = async () => {
 .generate-button:hover {
   background-color: #36ad6a; /* Slightly lighter green for hover state */
   border-color: #36ad6a;
+}
+
+.save-button {
+  height: auto;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  white-space: nowrap;
+  background-color: #f0c040; /* Yellow color */
+  color: white; /* Ensuring text is white for contrast */
+  border-color: #f0c040;
+}
+
+.save-button:hover {
+  background-color: #f0d060; /* Slightly lighter yellow for hover state */
+  border-color: #f0d060;
 }
 
 .selected-count {

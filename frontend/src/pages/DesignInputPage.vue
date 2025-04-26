@@ -374,17 +374,29 @@ const optimizePrompt = async () => {
 
     // 向後端發送優化請求
     // 實際實現應該替換為您的API調用
-    const optimizedPrompt = await fetch("/api/optimize-prompt", {
+    const response = await fetch("https://ec2.sausagee.party/txt/optimize", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: JSON.stringify({ prompt: form.value.prompt }),
-    }).then((res) => res.json());
+      body: new URLSearchParams({
+        text: form.value.prompt,
+      }),
+    });
 
-    // 更新提示詞
-    if (optimizedPrompt && optimizedPrompt.result) {
-      form.value.prompt = optimizedPrompt.result;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("優化提示詞失敗:", response.status, errorText);
+      throw new Error(`API錯誤: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data && data.text) {
+      form.value.prompt = data.text;
+      console.log("提示詞已優化:", data.text);
+    } else {
+      console.warn("API返回了未預期的數據格式:", data);
     }
   } catch (error) {
     console.error("優化提示詞失敗:", error);
@@ -499,7 +511,7 @@ const addReferenceImage = () => {
   if (uploadFileUrl.value) {
     imageStore.setReferenceImages([
       ...referenceImages.value,
-      { url: uploadFileUrl.value, prompt: '' }
+      { url: uploadFileUrl.value, prompt: "" },
     ]);
     showUploadModal.value = false;
   }
@@ -535,39 +547,109 @@ const clearForm = () => {
 };
 
 // 開始生成
-const startGeneration = () => {
+const startGeneration = async () => {
   if (!form.value.prompt.trim()) return;
 
-  // 如果選擇隨機種子，生成一個新的隨機種子
-  if (form.value.randomizeSeed) {
-    form.value.seed = Math.floor(Math.random() * 1000000);
+  try {
+    loading.value = true;
+
+    // 如果選擇隨機種子，生成一個新的隨機種子
+    if (form.value.randomizeSeed) {
+      form.value.seed = String(Math.floor(Math.random() * 1000000));
+    }
+
+    const [width, height] = form.value.size.split("x").map(Number);
+    const parameters = { width, height };
+
+    // 如果有選擇風格，加入參數
+    // if (form.value.style) {
+    //   parameters.style = form.value.style;
+    // }
+
+    // 準備參考圖像列表
+    let referenceImgList = [];
+    if (referenceImages.value.length > 0) {
+      // 這裡假設 referenceImages 包含的是 URL 或其他標識符
+      // 可能需要根據實際情況調整
+      // referenceImgList = referenceImages.value.map((img) => img.url || img);
+      // referenceImgList.forEach((img) => {
+      //   formData.append("imgs", img);
+      // });
+    }
+    referenceImgList = referenceImages.value.map((img) => img.url || img);
+    referenceImgList.forEach((img) => {
+      formData.append("imgs", img);
+    });
+
+    if (referenceImgList.length > 0) {
+      formData.append("imgs", JSON.stringify(referenceImgList));
+      formData.append("similarityStrength", form.value.referenceStrength / 100);
+    }
+
+    // 創建表單數據
+    const formData = new FormData();
+    formData.append("batch_count", form.value.count);
+    formData.append("text", form.value.prompt);
+
+    // 添加負面提示詞（如果有）
+    // if (form.value.negativePrompt) {
+    //   formData.append("negative_prompt", form.value.negativePrompt);
+    // }
+
+    formData.append("cfg_scale", form.value.cfgScale);
+    formData.append("seed", form.value.seed);
+
+    // 添加參數
+    formData.append("parameters", JSON.stringify(parameters));
+
+    // 如果有參考圖像，添加相關參數
+    // if (referenceImgList.length > 0) {
+    //   formData.append("imgs", JSON.stringify(referenceImgList));
+    //   // 將百分比轉換為 0-1 範圍的值
+    //   formData.append("similarityStrength", form.value.referenceStrength / 100);
+    // }
+
+    const response = await fetch("https://ec2.sausagee.party/img/generate", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`API 錯誤: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const taskId = data.id;
+
+    // 保存生成參數
+    imageStore.setGenerationParams({
+      prompt: form.value.prompt,
+      negativePrompt: form.value.negativePrompt,
+      style: form.value.style,
+      size: form.value.size,
+      steps: form.value.steps,
+      cfgScale: form.value.cfgScale,
+      seed: form.value.seed,
+      batchCount: form.value.count,
+      model: form.value.model,
+    });
+
+    // 導航到生成頁面
+    router.push({
+      name: "ai-generate",
+      params: {
+        projectId: projectId.value !== "temp" ? projectId.value : "temp",
+      },
+    });
+  } catch (error) {
+    console.error("開始生成失敗:", error);
+  } finally {
+    loading.value = false;
   }
-
-  // 保存生成參數
-  imageStore.setGenerationParams({
-    prompt: form.value.prompt,
-    negativePrompt: form.value.negativePrompt,
-    style: form.value.style,
-    size: form.value.size,
-    steps: form.value.steps,
-    cfgScale: form.value.cfgScale,
-    seed: form.value.seed,
-    batchCount: form.value.count,
-    model: form.value.model,
-  });
-
-  // 導航到生成頁面
-  router.push({
-    name: "ai-generate",
-    params: {
-      projectId: projectId.value !== "temp" ? projectId.value : "temp",
-    },
-  });
 };
 </script>
 
 <style scoped>
-
 .reference-image-wrapper {
   position: relative;
   display: flex;
