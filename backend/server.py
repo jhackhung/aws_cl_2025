@@ -272,7 +272,8 @@ async def inpainting_image(
 
 @app.post("/project/create")
 async def create_project(name: str = Form(...),
-                         templateId: Optional[str] = Form(None)):
+                        description: Optional[str] = Form(None),
+                        templateId: Optional[str] = Form(None)):
     try:
         cursor = conn.cursor()
 
@@ -282,10 +283,10 @@ async def create_project(name: str = Form(...),
 
         # Insert project into database
         insert_query = """
-        INSERT INTO projects (id, name, template_id, created_at, modified_at)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO projects (id, name, description, template_id, created_at, modified_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
         """
-        values = (project_id, name, templateId, current_time, current_time)
+        values = (project_id, name, description, templateId, current_time, current_time)
 
         cursor.execute(insert_query, values)
         conn.commit()
@@ -302,9 +303,10 @@ async def create_project(name: str = Form(...),
 
 @app.post("/project/save")
 async def save_project(id: str = Form(...),
-                       name: str = Form(...),
-                       tags: List[str] = Form(...),
-                       images: List[str] = Form(...)):
+                      name: str = Form(...),
+                      description: Optional[str] = Form(None),
+                      tags: List[str] = Form(...),
+                      images: List[str] = Form(...)):
     try:
         cursor = conn.cursor()
         current_time = datetime.now()
@@ -312,10 +314,10 @@ async def save_project(id: str = Form(...),
         # Update project details
         update_project_query = """
         UPDATE projects 
-        SET name = %s, modified_at = %s
+        SET name = %s, description = %s, modified_at = %s
         WHERE id = %s
         """
-        cursor.execute(update_project_query, (name, current_time, id))
+        cursor.execute(update_project_query, (name, description, current_time, id))
 
         # Delete existing tags for the project
         delete_tags_query = "DELETE FROM project_tags WHERE project_id = %s"
@@ -427,7 +429,8 @@ async def save_image(
 @app.post("/template/create")
 async def create_template(
     projectId: str = Form(...),
-    name: Optional[str] = Form(None)
+    name: Optional[str] = Form(None),
+    description: Optional[str] = Form(None)
 ):
     try:
         cursor = conn.cursor(dictionary=True)
@@ -435,7 +438,7 @@ async def create_template(
         current_time = datetime.now()
 
         # First verify the source project exists and get its details
-        cursor.execute("SELECT name FROM projects WHERE id = %s", (projectId,))
+        cursor.execute("SELECT name, description FROM projects WHERE id = %s", (projectId,))
         source_project = cursor.fetchone()
         if not source_project:
             return JSONResponse(
@@ -443,18 +446,17 @@ async def create_template(
                 content={"error": "Source project not found"}
             )
 
-        # Use provided name or generate one from source project
+        # Use provided name/description or generate from source project
         template_name = name or f"Template - {source_project['name']}"
+        template_description = description or source_project['description']
 
         # Copy project metadata with readonly flag
         copy_project_query = """
-        INSERT INTO projects (id, name, created_at, modified_at, readonly)
-        SELECT %s, %s, %s, %s, TRUE
-        FROM projects WHERE id = %s
+        INSERT INTO projects (id, name, description, created_at, modified_at, readonly)
+        VALUES (%s, %s, %s, %s, %s, TRUE)
         """
         cursor.execute(copy_project_query, 
-                      (template_id, template_name, current_time, current_time, projectId))
-
+                      (template_id, template_name, template_description, current_time, current_time))
         # Copy project tags
         copy_tags_query = """
         INSERT INTO project_tags (project_id, tag)
@@ -504,7 +506,6 @@ async def optimize_text(text: str = Form(...)):
 
 # GET endpoints
 
-
 @app.get("/project/{id}")
 async def get_project(id: str):
     try:
@@ -515,6 +516,7 @@ async def get_project(id: str):
         SELECT 
             p.id,
             p.name,
+            p.description,
             p.template_id,
             p.created_at,
             p.modified_at,
@@ -525,7 +527,7 @@ async def get_project(id: str):
         LEFT JOIN project_tags pt ON p.id = pt.project_id
         LEFT JOIN images i ON p.id = i.project_id
         WHERE p.id = %s
-        GROUP BY p.id, p.name, p.template_id, p.created_at, p.modified_at, p.readonly
+        GROUP BY p.id, p.name, p.description, p.template_id, p.created_at, p.modified_at, p.readonly
         """
         
         cursor.execute(project_query, (id,))
@@ -564,6 +566,7 @@ async def get_project(id: str):
         response = {
             "id": project["id"],
             "name": project["name"],
+            "description": project["description"],
             "templateId": project["template_id"],
             "readonly": project["readonly"],
             "tags": project["tags"].split(",") if project["tags"] else [],
