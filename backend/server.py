@@ -63,7 +63,7 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
             height = height or first_image_size["height"]
             width = width or first_image_size["width"]
 
-        img_list = await process_images(
+        img_list = process_images(
             model_id=model_id,
             task_id=task_id,
             prompt=text,
@@ -73,11 +73,11 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
             width=width,
             cfg_scale=cfg_scale,
             seed=seed)
-        task_result = save_images(img_list)
+        task_result = save_images(task_id, img_list)
         
 
     else:
-        img_list = await generate_images(model_id=model_id,
+        img_list = generate_images(model_id=model_id,
                                             task_id=task_id,
                                             prompt=text,
                                             batch_count=batch_count,
@@ -85,7 +85,7 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
                                             width=width,
                                             cfg_scale=cfg_scale,
                                             seed=seed)
-        task_result = save_images(img_list)
+        task_result = save_images(task_id, img_list)
 
 @app.get("/")
 async def root():
