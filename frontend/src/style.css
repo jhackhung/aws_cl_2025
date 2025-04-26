@@ -63,6 +63,9 @@ button:focus-visible {
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
+  height: 100%;
+  overflow: auto; /* 應用容器可滾動 */
+  position: relative;
 }
 
 @media (prefers-color-scheme: light) {
