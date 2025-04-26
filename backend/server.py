@@ -14,6 +14,7 @@ from datetime import datetime
 from fastapi.staticfiles import StaticFiles
 from img_generate.img_generator import generate_images, save_images, get_image_size, process_images
 from img_generate.img_inpainting import inpaint_images
+from img_generate.prompt_enhancer import enhance_pc_case_prompt
 import uuid
 import threading
 import asyncio
@@ -489,8 +490,7 @@ async def create_template(
 
 @app.post("/txt/optimize")
 async def optimize_text(text: str = Form(...)):
-    # TODO: Implement text optimization logic
-    return {"text": "optimized_text"}  # Placeholder
+    return {"text": enhance_pc_case_prompt(text)}  # Placeholder
 
 
 # GET endpoints
