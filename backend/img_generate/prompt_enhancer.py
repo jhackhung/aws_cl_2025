@@ -64,7 +64,7 @@ def enhance_pc_case_prompt(original_prompt: str, model_id: str = MODEL_ID) -> st
     7.  **Rendering Style:** (e.g., photorealistic render, concept art sketch, 3D octane render, unreal engine render, product shot, blueprint style, technical drawing)
     8.  **Composition/Setting:** (e.g., isolated on white background, on a clean desk setup, in a futuristic lab, against a dark textured background)
 
-    Generate ONLY the enhanced image prompt itself, ready to be used. Do not include any conversational text before or after the prompt. Make it detailed and specific."""
+    Generate ONLY the enhanced image prompt itself, ready to be used. Do not include any conversational text before or after the prompt. Make it consice (less than 50 words)."""
 
 
     # --- Invoke Bedrock Model ---
