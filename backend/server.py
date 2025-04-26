@@ -2,6 +2,18 @@ from fastapi import FastAPI, UploadFile, Form
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+import mysql.connector
+import uuid
+from datetime import datetime
+
+load_dotenv()
+
+DATABASE_PASSWORD = os.getenv('DATABASE_PASSWORD')
+DATABASE_USERNAME = os.getenv('DATABASE_USERNAME')
+DATABASE_ENDPOINT = os.getenv('DATABASE_ENDPOINT')
+
 from img_generate.img_generator import generate_images, save_images, get_image_size, process_images
 import uuid
 import threading
@@ -111,10 +123,40 @@ async def generate_image(
 
 
 @app.post("/project/create")
-async def create_project(name: str = Form(...),
-                         templateId: Optional[str] = Form(None)):
-    # TODO: Implement project creation logic
-    return {"id": "project_id"}  # Placeholder
+async def create_project(name: str = Form(...), templateId: Optional[str] = Form(None)):
+    try:
+        # Create MySQL connection
+        conn = mysql.connector.connect(
+            host=DATABASE_ENDPOINT,
+            user=DATABASE_USERNAME,
+            password=DATABASE_PASSWORD,
+            database="backend"
+        )
+        cursor = conn.cursor()
+
+        # Generate unique project ID
+        project_id = str(uuid.uuid4())
+        current_time = datetime.now()
+
+        # Insert project into database
+        insert_query = """
+        INSERT INTO projects (id, name, template_id, created_at, modified_at)
+        VALUES (%s, %s, %s, %s, %s)
+        """
+        values = (project_id, name, templateId, current_time, current_time)
+        
+        cursor.execute(insert_query, values)
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return {"id": project_id}
+
+    except mysql.connector.Error as err:
+        return {"error": f"Database error: {str(err)}"}, 500
+    except Exception as e:
+        return {"error": f"Server error: {str(e)}"}, 500
 
 
 @app.post("/project/save")
