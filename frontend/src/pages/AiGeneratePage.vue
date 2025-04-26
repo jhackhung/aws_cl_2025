@@ -40,7 +40,7 @@
             >
               Generate
             </NButton>
-            <NButton
+            <!-- <NButton
               class="save-button"
               type="primary"
               @click="saveImages"
@@ -48,7 +48,7 @@
               title="保存圖片"
             >
               Save ({{ savedImageIds.length }})
-            </NButton>
+            </NButton> -->
           </div>
 
           <!-- Images status bars -->
@@ -501,19 +501,40 @@ const optimizePrompt = async () => {
   try {
     loading.value = true;
 
-    // 模擬API調用延遲
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const response = await fetch("https://ec2.sausagee.party/txt/optimize", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        text: editablePrompt.value, // 正確使用 editablePrompt.value
+      }),
+    });
 
-    // 簡單的優化邏輯示例
-    const optimizedPrompt = `${editablePrompt.value.trim()} + 高質量、專業設計、細節豐富、協調的配色方案、均衡的構圖`;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("優化提示詞失敗:", response.status, errorText);
+      throw new Error(`API錯誤: ${response.status}`);
+    }
 
-    // 更新提示詞
-    editablePrompt.value = optimizedPrompt;
-    updatePrompt();
+    // 解析 JSON 回應
+    const data = await response.json();
 
-    // 在實際應用中，這裡可以調用後端API進行AI優化
+    if (data && data.text) {
+      // 直接設置 editablePrompt.value
+      editablePrompt.value = data.text;
+      console.log("提示詞已優化:", data.text);
+      // 更新全局提示詞
+      updatePrompt();
+      // 顯示成功提示
+      message.success("提示詞優化成功");
+    } else {
+      console.warn("API返回了未預期的數據格式:", data);
+      message.warning("優化提示詞時獲得未預期的回應格式");
+    }
   } catch (error) {
     console.error("優化提示詞失敗:", error);
+    message.error("優化提示詞失敗: " + (error.message || "未知錯誤"));
   } finally {
     loading.value = false;
   }
