@@ -163,6 +163,14 @@
                         <template #icon>✕</template>
                       </NButton>
                     </div>
+                    <div class="reference-prompt">
+                      <NInput
+                        v-model:value="image.prompt"
+                        type="text"
+                        placeholder="輸入此參考圖像的提示詞"
+                        @update:value="updateReferencePrompt(index, $event)"
+                      />
+                    </div>
                   </div>
                   <div class="reference-actions">
                     <NButton
@@ -491,7 +499,7 @@ const addReferenceImage = () => {
   if (uploadFileUrl.value) {
     imageStore.setReferenceImages([
       ...referenceImages.value,
-      uploadFileUrl.value,
+      { url: uploadFileUrl.value, prompt: '' }
     ]);
     showUploadModal.value = false;
   }
@@ -559,6 +567,20 @@ const startGeneration = () => {
 </script>
 
 <style scoped>
+
+.reference-image-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.reference-prompt {
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+}
 /* 現有的文本對齊樣式 */
 .text-input-left :deep(.n-input__textarea-el) {
   text-align: left !important;

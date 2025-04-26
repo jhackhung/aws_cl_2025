@@ -98,7 +98,9 @@ export const useImageStore = defineStore("image", {
     },
 
     setReferenceImages(images) {
-      this.referenceImages = images;
+      this.referenceImages = images.map(img => 
+        typeof img === 'string' ? { url: img, prompt: '' } : img
+      );
     },
 
     selectImage(image) {
