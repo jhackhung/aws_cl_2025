@@ -1,4 +1,5 @@
 import json
+import random
 import boto3
 from fastapi import FastAPI, UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse
@@ -96,9 +97,9 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
         # uploaded_image_bytes = [await img.read() for img in imgs]
         uploaded_image_bytes = []
         for img_id in imgs:
-            img = await get_image(img_id)
-            if img:
-                uploaded_image_bytes.append(base64.b64encode(img.read()).decode('utf8'))
+            img_base64 = await get_image(img_id)
+            if img_base64:
+                uploaded_image_bytes.append(img_base64)
 
 
         # 可依第一張圖片大小補高度寬度
@@ -110,7 +111,7 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
         img_list = process_images(model_id=model_id,
                                   task_id=task_id,
                                   prompt=text,
-                                  image_bytes_list=uploaded_image_bytes,
+                                  base64_images=uploaded_image_bytes,
                                   batch_count=batch_count,
                                   height=height,
                                   width=width,
@@ -137,9 +138,9 @@ async def inpainting_image_logic(task_id, batch_count, text, imgs, mask_prompt,
         # uploaded_image_bytes = [await img.read() for img in imgs]
         uploaded_image_bytes = []
         for img_id in imgs:
-            img = await get_image(img_id)
-            if img:
-                uploaded_image_bytes.append(base64.b64encode(img.read()).decode('utf8'))
+            img_base64 = await get_image(img_id)
+            if img_base64:
+                uploaded_image_bytes.append(img_base64)
 
         # 可依第一張圖片大小補高度寬度
         if not height or not width:
@@ -154,7 +155,7 @@ async def inpainting_image_logic(task_id, batch_count, text, imgs, mask_prompt,
                                  mask_prompt=mask_prompt,
                                  mask_image=mask_image,
                                  negative_prompt=negative_prompt,
-                                 image_bytes_list=uploaded_image_bytes,
+                                 base64_images=uploaded_image_bytes,
                                  batch_count=batch_count,
                                  height=height,
                                  width=width,
@@ -179,7 +180,7 @@ async def generate_image(
         similarityStrength: Optional[float] = Form(None),
         parameters: Optional[Dict] = Form(None),
 ):
-    seed = seed or 0
+    seed = random.randint(0, 214783647) if seed is None else seed
 
     height = parameters.get("height") if parameters else 1024
     width = parameters.get("width") if parameters else 1024
@@ -220,7 +221,7 @@ async def inpainting_image(
         seed: Optional[str] = Form(None),
         parameters: Optional[Dict] = Form(None),
 ):
-    seed = seed or 0
+    seed = random.randint(0, 214783647) if seed is None else seed
 
     height = parameters.get("height") if parameters else 1024
     width = parameters.get("width") if parameters else 1024
