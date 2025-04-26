@@ -121,7 +121,16 @@
                         type="textarea"
                         :autosize="{ minRows: 3, maxRows: 6 }"
                         placeholder="描述你希望局部區域變成的樣子"
+                        class="text-input-left"
                       />
+                      <NButton
+                        class="optimize-prompt-button"
+                        type="primary"
+                        @click="optimizePrompt"
+                        title="優化提示詞"
+                      >
+                        ★
+                      </NButton>
                     </NFormItem>
 
                     <NFormItem label="重生成強度">
@@ -306,6 +315,46 @@ const initCanvas = () => {
 
   // 儲存初始狀態到歷史記錄
   saveToHistory();
+};
+
+const optimizePrompt = async () => {
+  if (!inpaintingPrompt.value.trim()) return;
+
+  try {
+    loading.value = true;
+
+    // 向後端發送優化請求
+    // 實際實現應該替換為您的API調用
+    const response = await fetch("https://ec2.sausagee.party/txt/optimize", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        text: inpaintingPrompt.value,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("優化提示詞失敗:", response.status, errorText);
+      throw new Error(`API錯誤: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data && data.text) {
+      inpaintingPrompt.value = data.text;
+      console.log("提示詞已優化:", data.text);
+    } else {
+      console.warn("API返回了未預期的數據格式:", data);
+    }
+  } catch (error) {
+    console.error("優化提示詞失敗:", error);
+    // 這裡可以加入錯誤處理，例如使用通知組件顯示錯誤信息
+  } finally {
+    loading.value = false;
+  }
 };
 
 // 載入圖像到畫布
@@ -603,6 +652,32 @@ const saveEdits = async () => {
   margin: 0 auto;
 }
 
+.input-with-button {
+  position: relative;
+  width: 100%;
+}
+
+.optimize-prompt-button {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  right: 8px;
+  z-index: 2;
+  font-size: 16px;
+  padding: 4px 8px;
+  width: 32px;
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 確保輸入框內容左對齊並預留右側空間 */
+:deep(.text-input-left textarea) {
+  text-align: left !important;
+  padding-right: 40px;
+}
+
 .progress-container {
   text-align: center;
 }
@@ -668,6 +743,10 @@ const saveEdits = async () => {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
+}
+
+:deep(.text-input-left textarea) {
+  text-align: left !important;
 }
 
 .color-buttons {
