@@ -430,7 +430,10 @@ conn = mysql.connector.connect(
     host=DATABASE_ENDPOINT,
     user=DATABASE_USERNAME,
     password=DATABASE_PASSWORD,
-     database="backend"
+    database="backend",
+    charset="utf8mb4",
+    use_unicode=True,
+    collation="utf8mb4_general_ci",
 )
 
 

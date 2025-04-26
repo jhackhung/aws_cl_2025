@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def inpaint_image(model_id,
+def inpaint_images(model_id,
                   task_id,
                   prompt,
                   mask_prompt=None,
