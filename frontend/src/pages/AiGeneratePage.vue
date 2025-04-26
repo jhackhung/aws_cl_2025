@@ -2,8 +2,8 @@
   <div class="ai-generate-page">
     <AiGeneratePageHeader
       :loading="loading"
-      :selectedImages="selectedImages"
-      :hasSelectedImages="selectedImages.length > 0"
+      :selectedImages="selectedImageIds"
+      :hasSelectedImages="selectedImageIds.length > 0"
       @regenerate="regenerateSelected"
       @save-and-continue="saveAndContinue"
     />
@@ -480,9 +480,24 @@ const saveImages = () => {
 
 // 保存並繼續
 const saveAndContinue = () => {
-  if (selectedImages.value.length === 0) return;
-  const selectedImage = imageStore.generatedImages[selectedImages.value[0]];
-  if (!selectedImage) return;
+  if (selectedImageIds.value.length === 0) {
+    message.warning("請先選擇一張圖片");
+    return;
+  }
+
+  // 獲取選中的第一張圖片
+  const imageId = selectedImageIds.value[0];
+  const selectedImage = generatedImages.value.find((img) => img.id === imageId);
+
+  if (!selectedImage) {
+    message.error("找不到選中的圖片，請重新選擇");
+    return;
+  }
+
+  // 將選中的圖片保存到 store
+  imageStore.selectImage(selectedImage);
+
+  // 導航到設計師修訂頁面
   router.push({
     name: "designer-revision",
     params: {
