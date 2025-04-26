@@ -3,7 +3,7 @@
     <DesignerRevisionPageHeader
       :inpaintingLoading="inpaintingLoading"
       @save-edits="saveEdits"
-      @apply-inpainting="applyInpainting"
+      @apply-inpainting="handleApplyInpainting"
     />
 
     <NLayoutContent class="page-content">
@@ -30,13 +30,13 @@
                     <NButtonGroup>
                       <NButton
                         :type="currentTool === 'brush' ? 'primary' : 'default'"
-                        @click="setTool('brush')"
+                        @click="currentTool = 'brush'"
                       >
                         畫筆
                       </NButton>
                       <NButton
                         :type="currentTool === 'eraser' ? 'primary' : 'default'"
-                        @click="setTool('eraser')"
+                        @click="currentTool = 'eraser'"
                       >
                         橡皮擦
                       </NButton>
@@ -46,7 +46,7 @@
 
                 <div class="editor-canvas-container">
                   <canvas
-                    ref="editorCanvas"
+                    ref="canvasRef"
                     class="editor-canvas"
                     @mousedown="startDrawing"
                     @mousemove="draw"
@@ -121,6 +121,24 @@
                         type="textarea"
                         :autosize="{ minRows: 3, maxRows: 6 }"
                         placeholder="描述你希望局部區域變成的樣子"
+                        class="text-input-left"
+                      />
+                      <NButton
+                        class="optimize-prompt-button"
+                        type="primary"
+                        @click="optimizePrompt"
+                        title="優化提示詞"
+                      >
+                        ★
+                      </NButton>
+                    </NFormItem>
+
+                    <NFormItem label="負面提示詞">
+                      <NInput
+                        v-model:value="negativePrompt"
+                        type="textarea"
+                        :autosize="{ minRows: 2, maxRows: 4 }"
+                        placeholder="指定不希望出現的元素"
                       />
                     </NFormItem>
 
@@ -131,6 +149,7 @@
                         :max="100"
                         :step="1"
                       />
+                      <span class="param-value">{{ inpaintingStrength }}%</span>
                     </NFormItem>
 
                     <NFormItem label="步數">
@@ -140,6 +159,7 @@
                         :max="50"
                         :step="1"
                       />
+                      <span class="param-value">{{ inpaintingSteps }}</span>
                     </NFormItem>
 
                     <NFormItem label="提示詞引導">
@@ -149,6 +169,7 @@
                         :max="20"
                         :step="0.1"
                       />
+                      <span class="param-value">{{ inpaintingGuidance }}</span>
                     </NFormItem>
                   </NForm>
                 </div>
@@ -163,7 +184,7 @@
                       <div
                         class="result-card"
                         :class="{ selected: selectedResultIndex === index }"
-                        @click="selectResult(index)"
+                        @click="selectedResultIndex = index"
                       >
                         <NImage
                           :src="result.url"
@@ -174,7 +195,7 @@
                           <NButton
                             circle
                             quaternary
-                            @click.stop="useResult(result)"
+                            @click.stop="useInpaintingResult(result)"
                             title="使用此結果"
                           >
                             ✓
@@ -194,7 +215,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, reactive } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useProjectStore } from "../stores/project";
 import { useImageStore } from "../stores/image";
@@ -211,31 +232,37 @@ import {
   NFormItem,
   NInput,
   NSlider,
+  useMessage,
 } from "naive-ui";
 import DesignerRevisionPageHeader from "../components/headers/DesignerRevisionPageHeader.vue";
+import axios from "axios";
 
 const route = useRoute();
 const router = useRouter();
 const projectStore = useProjectStore();
 const imageStore = useImageStore();
+const message = useMessage();
 
-// 頁面狀態
+// API configuration
+const API_BASE_URL = "https://ec2.sausagee.party"; // Base URL for API
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000, // Longer timeout for image processing
+});
+
+// Page state
 const loading = ref(false);
 const inpaintingLoading = ref(false);
 const projectId = computed(() => route.params.projectId);
 const imageId = computed(() => route.params.imageId);
 const originalImage = ref(null);
-const editorCanvas = ref(null);
-const ctx = ref(null);
-const isDrawing = ref(false);
-const lastX = ref(0);
-const lastY = ref(0);
-const history = ref([]);
-const historyIndex = ref(-1);
 const inpaintingResults = ref([]);
 const selectedResultIndex = ref(null);
 
-// 編輯工具設置
+// Canvas/drawing state
+const canvasRef = ref(null);
+const ctx = ref(null);
+const isDrawing = ref(false);
 const currentTool = ref("brush");
 const brushSize = ref(10);
 const brushColor = ref("#ffffff");
@@ -248,64 +275,114 @@ const brushColors = [
   "#ffff00",
   "#ff00ff",
 ];
+const history = ref([]);
+const historyIndex = ref(-1);
+const lastPos = reactive({ x: 0, y: 0 });
+
+// Inpainting parameters
 const inpaintingPrompt = ref("");
+const negativePrompt = ref("");
 const inpaintingStrength = ref(80);
 const inpaintingSteps = ref(30);
 const inpaintingGuidance = ref(7.5);
 
-// 初始化頁面
+// Initialize page
 onMounted(async () => {
   loading.value = true;
 
   try {
     if (imageId.value) {
-      // 加載原始圖像
+      // Load original image
       const image = imageStore.getImageById(imageId.value);
 
       if (!image) {
-        // 如果在本地狀態中找不到圖像，可能需要從 API 加載
-        console.error("找不到指定的圖像");
+        // If image not found in local state, may need to fetch from API
+        console.error("Image not found");
         return;
       }
 
       originalImage.value = image;
 
-      // 初始化提示詞
+      // Initialize prompt with image's prompt
       inpaintingPrompt.value = image.prompt || "";
 
-      // 初始化畫布
+      // If there are parameters, use them for initial values
+      if (image.parameters) {
+        inpaintingStrength.value = image.parameters.strength || 80;
+        inpaintingSteps.value = image.parameters.steps || 30;
+        inpaintingGuidance.value = image.parameters.cfgScale || 7.5;
+        negativePrompt.value = image.parameters.negativePrompt || "";
+      }
+
+      // Initialize canvas
       initCanvas();
     }
   } catch (error) {
-    console.error("載入圖像失敗:", error);
+    console.error("Failed to load image:", error);
+    message.error("加載圖像失敗: " + error.message);
   } finally {
     loading.value = false;
   }
 });
 
-// 在組件卸載時清理資源
-onUnmounted(() => {
-  // 清理任何可能的資源
-});
-
-// 初始化畫布
+// Initialize canvas
 const initCanvas = () => {
-  const canvas = editorCanvas.value;
+  const canvas = canvasRef.value;
   if (!canvas) return;
 
-  // 設置畫布大小為容器大小
+  // Set canvas size to container size
   const container = canvas.parentElement;
   canvas.width = container.clientWidth;
   canvas.height = container.clientHeight;
 
-  // 獲取繪圖上下文
+  // Get drawing context
   ctx.value = canvas.getContext("2d");
 
-  // 載入圖像
+  // Load image
   loadImageToCanvas();
 
-  // 儲存初始狀態到歷史記錄
+  // Save initial state
   saveToHistory();
+};
+
+const optimizePrompt = async () => {
+  if (!inpaintingPrompt.value.trim()) return;
+
+  try {
+    loading.value = true;
+
+    // 向後端發送優化請求
+    // 實際實現應該替換為您的API調用
+    const response = await fetch("https://ec2.sausagee.party/txt/optimize", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        text: inpaintingPrompt.value,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("優化提示詞失敗:", response.status, errorText);
+      throw new Error(`API錯誤: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data && data.text) {
+      inpaintingPrompt.value = data.text;
+      console.log("提示詞已優化:", data.text);
+    } else {
+      console.warn("API返回了未預期的數據格式:", data);
+    }
+  } catch (error) {
+    console.error("優化提示詞失敗:", error);
+    // 這裡可以加入錯誤處理，例如使用通知組件顯示錯誤信息
+  } finally {
+    loading.value = false;
+  }
 };
 
 // 載入圖像到畫布
@@ -315,8 +392,8 @@ const loadImageToCanvas = () => {
   const img = new Image();
   img.crossOrigin = "Anonymous";
   img.onload = () => {
-    // 計算圖像縮放比例以適應畫布
-    const canvas = editorCanvas.value;
+    // Calculate scale to fit image to canvas
+    const canvas = canvasRef.value;
     const scale = Math.min(
       canvas.width / img.width,
       canvas.height / img.height
@@ -325,41 +402,44 @@ const loadImageToCanvas = () => {
     const scaledWidth = img.width * scale;
     const scaledHeight = img.height * scale;
 
-    // 計算圖像在畫布中的位置（居中）
+    // Center image on canvas
     const x = (canvas.width - scaledWidth) / 2;
     const y = (canvas.height - scaledHeight) / 2;
 
-    // 清除畫布
+    // Clear canvas
     ctx.value.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 繪製圖像
+    // Draw image
     ctx.value.drawImage(img, x, y, scaledWidth, scaledHeight);
 
-    // 儲存到歷史記錄
+    // Save to history
     saveToHistory();
   };
 
   img.onerror = () => {
-    console.error("載入圖像到畫布失敗");
+    console.error("Failed to load image to canvas");
+    message.error("載入圖像到畫布失敗");
   };
 
-  img.src = originalImage.value.url;
+  // Set image source based on available data
+  if (typeof originalImage.value === "string") {
+    img.src = originalImage.value;
+  } else if (originalImage.value.url) {
+    img.src = originalImage.value.url;
+  } else if (originalImage.value.data) {
+    img.src = `data:${originalImage.value.type};base64,${originalImage.value.data}`;
+  }
 };
 
-// 設置當前工具
-const setTool = (tool) => {
-  currentTool.value = tool;
-};
-
-// 開始繪製
+// Start drawing
 const startDrawing = (e) => {
   isDrawing.value = true;
   const { offsetX, offsetY } = getCoordinates(e);
-  lastX.value = offsetX;
-  lastY.value = offsetY;
+  lastPos.x = offsetX;
+  lastPos.y = offsetY;
 };
 
-// 繪製
+// Draw
 const draw = (e) => {
   if (!isDrawing.value || !ctx.value) return;
 
@@ -377,15 +457,15 @@ const draw = (e) => {
   }
 
   ctx.value.beginPath();
-  ctx.value.moveTo(lastX.value, lastY.value);
+  ctx.value.moveTo(lastPos.x, lastPos.y);
   ctx.value.lineTo(offsetX, offsetY);
   ctx.value.stroke();
 
-  lastX.value = offsetX;
-  lastY.value = offsetY;
+  lastPos.x = offsetX;
+  lastPos.y = offsetY;
 };
 
-// 停止繪製
+// Stop drawing
 const stopDrawing = () => {
   if (isDrawing.value) {
     isDrawing.value = false;
@@ -393,7 +473,7 @@ const stopDrawing = () => {
   }
 };
 
-// 處理觸摸事件
+// Handle touch events
 const handleTouchStart = (e) => {
   e.preventDefault();
   const touch = e.touches[0];
@@ -401,7 +481,7 @@ const handleTouchStart = (e) => {
     clientX: touch.clientX,
     clientY: touch.clientY,
   });
-  editorCanvas.value.dispatchEvent(mouseEvent);
+  canvasRef.value.dispatchEvent(mouseEvent);
 };
 
 const handleTouchMove = (e) => {
@@ -411,18 +491,18 @@ const handleTouchMove = (e) => {
     clientX: touch.clientX,
     clientY: touch.clientY,
   });
-  editorCanvas.value.dispatchEvent(mouseEvent);
+  canvasRef.value.dispatchEvent(mouseEvent);
 };
 
 const handleTouchEnd = (e) => {
   e.preventDefault();
   const mouseEvent = new MouseEvent("mouseup", {});
-  editorCanvas.value.dispatchEvent(mouseEvent);
+  canvasRef.value.dispatchEvent(mouseEvent);
 };
 
-// 獲取座標
+// Get coordinates
 const getCoordinates = (e) => {
-  const canvas = editorCanvas.value;
+  const canvas = canvasRef.value;
   const rect = canvas.getBoundingClientRect();
   return {
     offsetX: e.clientX - rect.left,
@@ -430,34 +510,29 @@ const getCoordinates = (e) => {
   };
 };
 
-// 清除畫布
+// Clear canvas
 const clearCanvas = () => {
-  if (!ctx.value || !editorCanvas.value) return;
+  if (!ctx.value || !canvasRef.value) return;
 
-  ctx.value.clearRect(
-    0,
-    0,
-    editorCanvas.value.width,
-    editorCanvas.value.height
-  );
-  loadImageToCanvas();
+  ctx.value.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+  saveToHistory();
 };
 
-// 保存到歷史記錄
+// Save to history
 const saveToHistory = () => {
-  if (!ctx.value || !editorCanvas.value) return;
+  if (!ctx.value || !canvasRef.value) return;
 
-  // 如果當前不在歷史記錄的末尾，刪除後面的記錄
+  // If we're not at the end of history, truncate it
   if (historyIndex.value < history.value.length - 1) {
     history.value = history.value.slice(0, historyIndex.value + 1);
   }
 
-  // 保存當前畫布狀態
-  history.value.push(editorCanvas.value.toDataURL());
+  // Save current canvas state
+  history.value.push(canvasRef.value.toDataURL());
   historyIndex.value = history.value.length - 1;
 };
 
-// 撤銷
+// Undo
 const undo = () => {
   if (historyIndex.value > 0) {
     historyIndex.value--;
@@ -465,7 +540,7 @@ const undo = () => {
   }
 };
 
-// 重做
+// Redo
 const redo = () => {
   if (historyIndex.value < history.value.length - 1) {
     historyIndex.value++;
@@ -473,114 +548,213 @@ const redo = () => {
   }
 };
 
-// 從歷史記錄恢復
+// Restore from history
 const restoreFromHistory = () => {
-  if (!ctx.value || !editorCanvas.value || history.value.length === 0) return;
+  if (!ctx.value || !canvasRef.value || history.value.length === 0) return;
 
   const img = new Image();
   img.onload = () => {
-    ctx.value.clearRect(
-      0,
-      0,
-      editorCanvas.value.width,
-      editorCanvas.value.height
-    );
+    ctx.value.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
     ctx.value.drawImage(img, 0, 0);
   };
   img.src = history.value[historyIndex.value];
 };
 
-// 應用局部重生成
-const applyInpainting = async () => {
-  if (!ctx.value || !editorCanvas.value || !originalImage.value) return;
+// Create mask for inpainting
+const createMask = () => {
+  // Return the canvas as is (it's already a drawing of the mask)
+  return canvasRef.value;
+};
 
-  // 獲取遮罩
-  const maskDataUrl = editorCanvas.value.toDataURL("image/png");
-
-  // 創建遮罩
-  const mask = generateMask(maskDataUrl);
+// Handle apply inpainting button click
+const handleApplyInpainting = async () => {
+  if (!originalImage.value) {
+    message.error("No image selected for inpainting");
+    return;
+  }
 
   inpaintingLoading.value = true;
 
   try {
-    // 執行局部重生成
-    const newImage = await imageStore.applyInpainting(
-      originalImage.value.id,
-      mask,
-      inpaintingPrompt.value,
-      {
-        strength: inpaintingStrength.value,
-        steps: inpaintingSteps.value,
-        guidance: inpaintingGuidance.value,
-        projectId: projectId.value !== "temp" ? projectId.value : null,
-      }
-    );
+    // Create mask
+    const maskCanvas = createMask();
+    const maskDataUrl = maskCanvas.toDataURL("image/png");
 
-    // 將結果添加到重生成結果列表
-    inpaintingResults.value.unshift(newImage);
+    // Create blob from data URL
+    const maskBlob = await fetch(maskDataUrl).then((r) => r.blob());
 
-    // 選擇最新的結果
-    selectedResultIndex.value = 0;
+    // Prepare form data
+    const formData = new FormData();
+    formData.append("batch_count", 1);
+    formData.append("text", inpaintingPrompt.value);
+    formData.append("imgs[]", originalImage.value.id); // Make sure format matches backend expectation
+    formData.append("mask_image", maskBlob, "mask.png");
+    formData.append("negative_prompt", negativePrompt.value);
+    formData.append("cfg_scale", inpaintingGuidance.value);
+    formData.append("seed", Math.floor(Math.random() * 2147483647)); // Random seed
+
+    // Add parameters
+    const parameters = {
+      height: originalImage.value.parameters?.height || 1024,
+      width: originalImage.value.parameters?.width || 1024,
+      strength: inpaintingStrength.value,
+      steps: inpaintingSteps.value,
+    };
+    formData.append("parameters", JSON.stringify(parameters));
+
+    // Submit inpainting task
+    const response = await api.post("/img/inpainting", formData);
+    const taskId = response.data.id;
+
+    // Poll for results
+    await pollTaskStatus(taskId);
   } catch (error) {
-    console.error("局部重生成失敗:", error);
+    console.error("Inpainting failed:", error);
+    message.error(`局部重生成失敗: ${error.message || "未知錯誤"}`);
   } finally {
     inpaintingLoading.value = false;
   }
 };
 
-// 生成遮罩
-const generateMask = (dataUrl) => {
-  // 在實際的應用中，您需要處理圖像數據，提取畫筆區域作為遮罩
-  // 現在我們只是簡單地返回原始畫布數據
-  return dataUrl;
+// Poll task status
+const pollTaskStatus = async (taskId) => {
+  let completed = false;
+  let attempts = 0;
+  const maxAttempts = 60; // 5 minutes max (60 * 5 seconds)
+
+  while (!completed && attempts < maxAttempts) {
+    try {
+      const response = await api.get(`/img/result/${taskId}`);
+      const status = response.data.status;
+
+      if (status === "done") {
+        completed = true;
+        // Process results
+        if (response.data.urls && response.data.urls.length > 0) {
+          const newResults = response.data.urls.map((url) => ({
+            url: API_BASE_URL + url,
+            id: url.split("/").pop().split(".")[0], // Extract ID from URL
+            createdAt: new Date().toISOString(),
+          }));
+          inpaintingResults.value = [...newResults, ...inpaintingResults.value];
+          selectedResultIndex.value = 0; // Select first new result
+          message.success("局部重生成成功完成");
+        } else {
+          message.warning("局部重生成未返回結果");
+        }
+      } else if (status === "error") {
+        completed = true;
+        throw new Error(response.data.error || "任務失敗");
+      }
+
+      // Update progress if available
+      if (response.data.progress) {
+        imageStore.updateGenerationProgress(response.data.progress);
+      }
+    } catch (error) {
+      console.error("Error polling task status:", error);
+      message.error(`任務監控失敗: ${error.message}`);
+      completed = true;
+    }
+
+    if (!completed) {
+      // Wait before polling again
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // 5 second delay
+      attempts++;
+    }
+  }
+
+  if (!completed) {
+    message.warning("局部重生成耗時超過預期。請稍後在畫廊中查看結果。");
+  }
 };
 
-// 選擇結果
-const selectResult = (index) => {
-  selectedResultIndex.value = index;
-};
-
-// 使用選定的結果
-const useResult = (result) => {
+// Use inpainting result
+const useInpaintingResult = async (result) => {
   if (!result) return;
 
-  // 導航到圖像生成頁面，顯示選定的結果
-  router.push({
-    name: "ai-generate",
-    params: {
-      projectId: projectId.value !== "temp" ? projectId.value : "temp",
-    },
-  });
-};
-
-// 保存編輯
-const saveEdits = async () => {
-  if (!editorCanvas.value || !originalImage.value) return;
-
-  // 獲取編輯後的圖像數據
-  const editedImageDataUrl = editorCanvas.value.toDataURL("image/png");
-
   try {
-    // 保存編輯後的圖像
-    // 在實際應用中，您需要將圖像數據上傳到服務器
-    // 現在我們只是簡單地模擬這個過程
-    const editedImage = {
-      ...originalImage.value,
-      url: editedImageDataUrl,
-      editedAt: new Date().toISOString(),
+    // Get project ID from route
+    const projectId = route.params.projectId;
+
+    // Fetch image data
+    const imageResponse = await fetch(result.url);
+    const imageBlob = await imageResponse.blob();
+
+    // Create form data for saving
+    const formData = new FormData();
+    formData.append("projectId", projectId);
+    formData.append("file", imageBlob, `inpainted_${Date.now()}.jpg`);
+    formData.append("prompt", inpaintingPrompt.value);
+
+    // Include original parameters but update with inpainting parameters
+    const parameters = {
+      ...(originalImage.value.parameters || {}),
+      strength: inpaintingStrength.value,
+      steps: inpaintingSteps.value,
+      cfgScale: inpaintingGuidance.value,
+      inpainted: true,
+      sourceImageId: originalImage.value.id,
+      negativePrompt: negativePrompt.value,
     };
+    formData.append("parameters", JSON.stringify(parameters));
 
-    console.log("圖像編輯已保存", editedImage);
+    // Save new image
+    const response = await api.post("/img/save", formData);
+    const newImageId = response.data.id;
 
-    // 返回到生成頁面
+    message.success("重生成的圖像已儲存到專案");
+
+    // Navigate to generate page
     router.push({
       name: "ai-generate",
-      params: {
-        projectId: projectId.value !== "temp" ? projectId.value : "temp",
-      },
+      params: { projectId: projectId },
     });
   } catch (error) {
-    console.error("保存編輯失敗:", error);
+    console.error("Failed to save inpainted result:", error);
+    message.error(`保存結果失敗: ${error.message}`);
+  }
+};
+
+// Save edits (without inpainting)
+const saveEdits = async () => {
+  if (!canvasRef.value || !originalImage.value) return;
+
+  try {
+    // Get edited image data
+    const editedImageDataUrl = canvasRef.value.toDataURL("image/png");
+
+    // Convert data URL to blob
+    const response = await fetch(editedImageDataUrl);
+    const blob = await response.blob();
+
+    // Create form data
+    const formData = new FormData();
+    formData.append("projectId", route.params.projectId);
+    formData.append("file", blob, `edited_${Date.now()}.png`);
+    formData.append("prompt", originalImage.value.prompt || "");
+
+    // Include original parameters
+    const parameters = {
+      ...(originalImage.value.parameters || {}),
+      edited: true,
+      sourceImageId: originalImage.value.id,
+    };
+    formData.append("parameters", JSON.stringify(parameters));
+
+    // Save image
+    const saveResponse = await api.post("/img/save", formData);
+
+    message.success("編輯已儲存");
+
+    // Return to generate page
+    router.push({
+      name: "ai-generate",
+      params: { projectId: route.params.projectId },
+    });
+  } catch (error) {
+    console.error("Failed to save edits:", error);
+    message.error(`保存編輯失敗: ${error.message}`);
   }
 };
 </script>
@@ -601,6 +775,32 @@ const saveEdits = async () => {
   padding: 40px 0;
   max-width: 600px;
   margin: 0 auto;
+}
+
+.input-with-button {
+  position: relative;
+  width: 100%;
+}
+
+.optimize-prompt-button {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  right: 8px;
+  z-index: 2;
+  font-size: 16px;
+  padding: 4px 8px;
+  width: 32px;
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 確保輸入框內容左對齊並預留右側空間 */
+:deep(.text-input-left textarea) {
+  text-align: left !important;
+  padding-right: 40px;
 }
 
 .progress-container {
@@ -668,6 +868,10 @@ const saveEdits = async () => {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
+}
+
+:deep(.text-input-left textarea) {
+  text-align: left !important;
 }
 
 .color-buttons {
@@ -747,6 +951,12 @@ const saveEdits = async () => {
   opacity: 1;
 }
 
+.param-value {
+  margin-left: 8px;
+  color: #666;
+  font-size: 14px;
+}
+
 @media (max-width: 768px) {
   .page-content {
     padding: 0 16px 16px 16px;
@@ -780,4 +990,748 @@ const saveEdits = async () => {
     margin-top: 16px;
   }
 }
+
+/* Dark mode support */
+:root.dark .editor-container {
+  background-color: #1a1a1a;
+}
+
+:root.dark .editor-header,
+:root.dark .editor-tools {
+  background-color: #252525;
+  border-color: #333;
+}
+
+:root.dark .editor-canvas {
+  background-color: #333;
+}
+
+:root.dark .original-image,
+:root.dark .inpainting-settings,
+:root.dark .inpainting-results {
+  background-color: #252525;
+}
+
+:root.dark .color-button {
+  border-color: #555;
+}
+
+:root.dark .color-button.active {
+  border-color: #eaeaea;
+}
+
+:root.dark .param-value {
+  color: #aaa;
+}
 </style>
+<template>
+  <div class="revision-page">
+    <DesignerRevisionPageHeader
+      :inpaintingLoading="inpaintingLoading"
+      @save-edits="saveEdits"
+      @apply-inpainting="handleApplyInpainting"
+    />
+
+    <NLayoutContent class="page-content">
+      <NSpin :show="loading || inpaintingLoading">
+        <div v-if="inpaintingLoading" class="inpainting-progress">
+          <div class="progress-container">
+            <h3>正在進行局部重生成，請稍候...</h3>
+            <NProgress
+              type="line"
+              :percentage="imageStore.generationProgress"
+              :height="20"
+              :processing="true"
+            />
+          </div>
+        </div>
+
+        <template v-else>
+          <NGrid cols="1 l:2" x-gap="24" y-gap="24">
+            <NGridItem class="editor-grid-item">
+              <div class="editor-container">
+                <div class="editor-header">
+                  <h2>圖像編輯</h2>
+                  <div class="tool-selection">
+                    <NButtonGroup>
+                      <NButton
+                        :type="currentTool === 'brush' ? 'primary' : 'default'"
+                        @click="currentTool = 'brush'"
+                      >
+                        畫筆
+                      </NButton>
+                      <NButton
+                        :type="currentTool === 'eraser' ? 'primary' : 'default'"
+                        @click="currentTool = 'eraser'"
+                      >
+                        橡皮擦
+                      </NButton>
+                    </NButtonGroup>
+                  </div>
+                </div>
+
+                <div class="editor-canvas-container">
+                  <canvas
+                    ref="canvasRef"
+                    class="editor-canvas"
+                    @mousedown="startDrawing"
+                    @mousemove="draw"
+                    @mouseup="stopDrawing"
+                    @mouseleave="stopDrawing"
+                    @touchstart="handleTouchStart"
+                    @touchmove="handleTouchMove"
+                    @touchend="handleTouchEnd"
+                  ></canvas>
+                </div>
+
+                <div class="editor-tools">
+                  <div class="tool-group">
+                    <label>筆刷大小</label>
+                    <NSlider
+                      v-model:value="brushSize"
+                      :min="1"
+                      :max="50"
+                      :step="1"
+                    />
+                  </div>
+
+                  <div class="tool-group">
+                    <label>筆刷顏色</label>
+                    <div class="color-buttons">
+                      <div
+                        v-for="color in brushColors"
+                        :key="color"
+                        class="color-button"
+                        :style="{ backgroundColor: color }"
+                        :class="{ active: brushColor === color }"
+                        @click="brushColor = color"
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div class="action-buttons">
+                    <NButton @click="clearCanvas">清除畫布</NButton>
+                    <NButton @click="undo" :disabled="historyIndex <= 0"
+                      >撤銷</NButton
+                    >
+                    <NButton
+                      @click="redo"
+                      :disabled="historyIndex >= history.length - 1"
+                      >重做</NButton
+                    >
+                  </div>
+                </div>
+              </div>
+            </NGridItem>
+
+            <NGridItem>
+              <div class="settings-container">
+                <div class="original-image">
+                  <h2>原始圖像</h2>
+                  <NImage
+                    v-if="originalImage"
+                    :src="originalImage.url"
+                    object-fit="contain"
+                    :width="400"
+                    :alt="'原始圖像'"
+                  />
+                </div>
+
+                <div class="inpainting-settings">
+                  <h2>重生成設置</h2>
+
+                  <NForm>
+                    <NFormItem label="提示詞">
+                      <NInput
+                        v-model:value="inpaintingPrompt"
+                        type="textarea"
+                        :autosize="{ minRows: 3, maxRows: 6 }"
+                        placeholder="描述你希望局部區域變成的樣子"
+                      />
+                    </NFormItem>
+
+                    <NFormItem label="負面提示詞">
+                      <NInput
+                        v-model:value="negativePrompt"
+                        type="textarea"
+                        :autosize="{ minRows: 2, maxRows: 4 }"
+                        placeholder="指定不希望出現的元素"
+                      />
+                    </NFormItem>
+
+                    <NFormItem label="重生成強度">
+                      <NSlider
+                        v-model:value="inpaintingStrength"
+                        :min="0"
+                        :max="100"
+                        :step="1"
+                      />
+                      <span class="param-value">{{ inpaintingStrength }}%</span>
+                    </NFormItem>
+
+                    <NFormItem label="步數">
+                      <NSlider
+                        v-model:value="inpaintingSteps"
+                        :min="10"
+                        :max="50"
+                        :step="1"
+                      />
+                      <span class="param-value">{{ inpaintingSteps }}</span>
+                    </NFormItem>
+
+                    <NFormItem label="提示詞引導">
+                      <NSlider
+                        v-model:value="inpaintingGuidance"
+                        :min="1"
+                        :max="20"
+                        :step="0.1"
+                      />
+                      <span class="param-value">{{ inpaintingGuidance }}</span>
+                    </NFormItem>
+                  </NForm>
+                </div>
+
+                <div v-if="inpaintingResults.length" class="inpainting-results">
+                  <h2>重生成結果</h2>
+                  <NGrid x-gap="16" y-gap="16" cols="1 s:2">
+                    <NGridItem
+                      v-for="(result, index) in inpaintingResults"
+                      :key="index"
+                    >
+                      <div
+                        class="result-card"
+                        :class="{ selected: selectedResultIndex === index }"
+                        @click="selectedResultIndex = index"
+                      >
+                        <NImage
+                          :src="result.url"
+                          object-fit="cover"
+                          :alt="'重生成結果'"
+                        />
+                        <div class="result-actions">
+                          <NButton
+                            circle
+                            quaternary
+                            @click.stop="useInpaintingResult(result)"
+                            title="使用此結果"
+                          >
+                            ✓
+                          </NButton>
+                        </div>
+                      </div>
+                    </NGridItem>
+                  </NGrid>
+                </div>
+              </div>
+            </NGridItem>
+          </NGrid>
+        </template>
+      </NSpin>
+    </NLayoutContent>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onUnmounted, reactive } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useProjectStore } from "../stores/project";
+import { useImageStore } from "../stores/image";
+import {
+  NLayoutContent,
+  NButton,
+  NButtonGroup,
+  NProgress,
+  NGrid,
+  NGridItem,
+  NImage,
+  NSpin,
+  NForm,
+  NFormItem,
+  NInput,
+  NSlider,
+  useMessage,
+} from "naive-ui";
+import DesignerRevisionPageHeader from "../components/headers/DesignerRevisionPageHeader.vue";
+import axios from "axios";
+
+const route = useRoute();
+const router = useRouter();
+const projectStore = useProjectStore();
+const imageStore = useImageStore();
+const message = useMessage();
+
+// API configuration
+const API_BASE_URL = "https://ec2.sausagee.party"; // Base URL for API
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000, // Longer timeout for image processing
+});
+
+// Page state
+const loading = ref(false);
+const inpaintingLoading = ref(false);
+const projectId = computed(() => route.params.projectId);
+const imageId = computed(() => route.params.imageId);
+const originalImage = ref(null);
+const inpaintingResults = ref([]);
+const selectedResultIndex = ref(null);
+
+// Canvas/drawing state
+const canvasRef = ref(null);
+const ctx = ref(null);
+const isDrawing = ref(false);
+const currentTool = ref("brush");
+const brushSize = ref(10);
+const brushColor = ref("#ffffff");
+const brushColors = [
+  "#ffffff",
+  "#000000",
+  "#ff0000",
+  "#00ff00",
+  "#0000ff",
+  "#ffff00",
+  "#ff00ff",
+];
+const history = ref([]);
+const historyIndex = ref(-1);
+const lastPos = reactive({ x: 0, y: 0 });
+
+// Inpainting parameters
+const inpaintingPrompt = ref("");
+const negativePrompt = ref("");
+const inpaintingStrength = ref(80);
+const inpaintingSteps = ref(30);
+const inpaintingGuidance = ref(7.5);
+
+// Initialize page
+onMounted(async () => {
+  loading.value = true;
+
+  try {
+    if (imageId.value) {
+      // Load original image
+      const image = imageStore.getImageById(imageId.value);
+
+      if (!image) {
+        // If image not found in local state, may need to fetch from API
+        console.error("Image not found");
+        return;
+      }
+
+      originalImage.value = image;
+
+      // Initialize prompt with image's prompt
+      inpaintingPrompt.value = image.prompt || "";
+
+      // If there are parameters, use them for initial values
+      if (image.parameters) {
+        inpaintingStrength.value = image.parameters.strength || 80;
+        inpaintingSteps.value = image.parameters.steps || 30;
+        inpaintingGuidance.value = image.parameters.cfgScale || 7.5;
+        negativePrompt.value = image.parameters.negativePrompt || "";
+      }
+
+      // Initialize canvas
+      initCanvas();
+    }
+  } catch (error) {
+    console.error("Failed to load image:", error);
+    message.error("加載圖像失敗: " + error.message);
+  } finally {
+    loading.value = false;
+  }
+});
+
+// Initialize canvas
+const initCanvas = () => {
+  const canvas = canvasRef.value;
+  if (!canvas) return;
+
+  // Set canvas size to container size
+  const container = canvas.parentElement;
+  canvas.width = container.clientWidth;
+  canvas.height = container.clientHeight;
+
+  // Get drawing context
+  ctx.value = canvas.getContext("2d");
+
+  // Load image
+  loadImageToCanvas();
+
+  // Save initial state
+  saveToHistory();
+};
+
+// Load image to canvas
+const loadImageToCanvas = () => {
+  if (!ctx.value || !originalImage.value) return;
+
+  const img = new Image();
+  img.crossOrigin = "Anonymous";
+  img.onload = () => {
+    // Calculate scale to fit image to canvas
+    const canvas = canvasRef.value;
+    const scale = Math.min(
+      canvas.width / img.width,
+      canvas.height / img.height
+    );
+
+    const scaledWidth = img.width * scale;
+    const scaledHeight = img.height * scale;
+
+    // Center image on canvas
+    const x = (canvas.width - scaledWidth) / 2;
+    const y = (canvas.height - scaledHeight) / 2;
+
+    // Clear canvas
+    ctx.value.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw image
+    ctx.value.drawImage(img, x, y, scaledWidth, scaledHeight);
+
+    // Save to history
+    saveToHistory();
+  };
+
+  img.onerror = () => {
+    console.error("Failed to load image to canvas");
+    message.error("載入圖像到畫布失敗");
+  };
+
+  // Set image source based on available data
+  if (typeof originalImage.value === "string") {
+    img.src = originalImage.value;
+  } else if (originalImage.value.url) {
+    img.src = originalImage.value.url;
+  } else if (originalImage.value.data) {
+    img.src = `data:${originalImage.value.type};base64,${originalImage.value.data}`;
+  }
+};
+
+// Start drawing
+const startDrawing = (e) => {
+  isDrawing.value = true;
+  const { offsetX, offsetY } = getCoordinates(e);
+  lastPos.x = offsetX;
+  lastPos.y = offsetY;
+};
+
+// Draw
+const draw = (e) => {
+  if (!isDrawing.value || !ctx.value) return;
+
+  const { offsetX, offsetY } = getCoordinates(e);
+
+  ctx.value.lineJoin = "round";
+  ctx.value.lineCap = "round";
+  ctx.value.lineWidth = brushSize.value;
+
+  if (currentTool.value === "brush") {
+    ctx.value.strokeStyle = brushColor.value;
+    ctx.value.globalCompositeOperation = "source-over";
+  } else if (currentTool.value === "eraser") {
+    ctx.value.globalCompositeOperation = "destination-out";
+  }
+
+  ctx.value.beginPath();
+  ctx.value.moveTo(lastPos.x, lastPos.y);
+  ctx.value.lineTo(offsetX, offsetY);
+  ctx.value.stroke();
+
+  lastPos.x = offsetX;
+  lastPos.y = offsetY;
+};
+
+// Stop drawing
+const stopDrawing = () => {
+  if (isDrawing.value) {
+    isDrawing.value = false;
+    saveToHistory();
+  }
+};
+
+// Handle touch events
+const handleTouchStart = (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const mouseEvent = new MouseEvent("mousedown", {
+    clientX: touch.clientX,
+    clientY: touch.clientY,
+  });
+  canvasRef.value.dispatchEvent(mouseEvent);
+};
+
+const handleTouchMove = (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const mouseEvent = new MouseEvent("mousemove", {
+    clientX: touch.clientX,
+    clientY: touch.clientY,
+  });
+  canvasRef.value.dispatchEvent(mouseEvent);
+};
+
+const handleTouchEnd = (e) => {
+  e.preventDefault();
+  const mouseEvent = new MouseEvent("mouseup", {});
+  canvasRef.value.dispatchEvent(mouseEvent);
+};
+
+// Get coordinates
+const getCoordinates = (e) => {
+  const canvas = canvasRef.value;
+  const rect = canvas.getBoundingClientRect();
+  return {
+    offsetX: e.clientX - rect.left,
+    offsetY: e.clientY - rect.top,
+  };
+};
+
+// Clear canvas
+const clearCanvas = () => {
+  if (!ctx.value || !canvasRef.value) return;
+
+  ctx.value.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+  saveToHistory();
+};
+
+// Save to history
+const saveToHistory = () => {
+  if (!ctx.value || !canvasRef.value) return;
+
+  // If we're not at the end of history, truncate it
+  if (historyIndex.value < history.value.length - 1) {
+    history.value = history.value.slice(0, historyIndex.value + 1);
+  }
+
+  // Save current canvas state
+  history.value.push(canvasRef.value.toDataURL());
+  historyIndex.value = history.value.length - 1;
+};
+
+// Undo
+const undo = () => {
+  if (historyIndex.value > 0) {
+    historyIndex.value--;
+    restoreFromHistory();
+  }
+};
+
+// Redo
+const redo = () => {
+  if (historyIndex.value < history.value.length - 1) {
+    historyIndex.value++;
+    restoreFromHistory();
+  }
+};
+
+// Restore from history
+const restoreFromHistory = () => {
+  if (!ctx.value || !canvasRef.value || history.value.length === 0) return;
+
+  const img = new Image();
+  img.onload = () => {
+    ctx.value.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+    ctx.value.drawImage(img, 0, 0);
+  };
+  img.src = history.value[historyIndex.value];
+};
+
+// Create mask for inpainting
+const createMask = () => {
+  // Return the canvas as is (it's already a drawing of the mask)
+  return canvasRef.value;
+};
+
+// Handle apply inpainting button click
+const handleApplyInpainting = async () => {
+  if (!originalImage.value) {
+    message.error("No image selected for inpainting");
+    return;
+  }
+
+  inpaintingLoading.value = true;
+
+  try {
+    // Create mask
+    const maskCanvas = createMask();
+    const maskDataUrl = maskCanvas.toDataURL("image/png");
+
+    // Create blob from data URL
+    const maskBlob = await fetch(maskDataUrl).then((r) => r.blob());
+
+    // Prepare form data
+    const formData = new FormData();
+    formData.append("batch_count", 1);
+    formData.append("text", inpaintingPrompt.value);
+    formData.append("imgs[]", originalImage.value.id); // Make sure format matches backend expectation
+    formData.append("mask_image", maskBlob, "mask.png");
+    formData.append("negative_prompt", negativePrompt.value);
+    formData.append("cfg_scale", inpaintingGuidance.value);
+    formData.append("seed", Math.floor(Math.random() * 2147483647)); // Random seed
+
+    // Add parameters
+    const parameters = {
+      height: originalImage.value.parameters?.height || 1024,
+      width: originalImage.value.parameters?.width || 1024,
+      strength: inpaintingStrength.value,
+      steps: inpaintingSteps.value,
+    };
+    formData.append("parameters", JSON.stringify(parameters));
+
+    // Submit inpainting task
+    const response = await api.post("/img/inpainting", formData);
+    const taskId = response.data.id;
+
+    // Poll for results
+    await pollTaskStatus(taskId);
+  } catch (error) {
+    console.error("Inpainting failed:", error);
+    message.error(`局部重生成失敗: ${error.message || "未知錯誤"}`);
+  } finally {
+    inpaintingLoading.value = false;
+  }
+};
+
+// Poll task status
+const pollTaskStatus = async (taskId) => {
+  let completed = false;
+  let attempts = 0;
+  const maxAttempts = 60; // 5 minutes max (60 * 5 seconds)
+
+  while (!completed && attempts < maxAttempts) {
+    try {
+      const response = await api.get(`/img/result/${taskId}`);
+      const status = response.data.status;
+
+      if (status === "done") {
+        completed = true;
+        // Process results
+        if (response.data.urls && response.data.urls.length > 0) {
+          const newResults = response.data.urls.map((url) => ({
+            url: API_BASE_URL + url,
+            id: url.split("/").pop().split(".")[0], // Extract ID from URL
+            createdAt: new Date().toISOString(),
+          }));
+          inpaintingResults.value = [...newResults, ...inpaintingResults.value];
+          selectedResultIndex.value = 0; // Select first new result
+          message.success("局部重生成成功完成");
+        } else {
+          message.warning("局部重生成未返回結果");
+        }
+      } else if (status === "error") {
+        completed = true;
+        throw new Error(response.data.error || "任務失敗");
+      }
+
+      // Update progress if available
+      if (response.data.progress) {
+        imageStore.updateGenerationProgress(response.data.progress);
+      }
+    } catch (error) {
+      console.error("Error polling task status:", error);
+      message.error(`任務監控失敗: ${error.message}`);
+      completed = true;
+    }
+
+    if (!completed) {
+      // Wait before polling again
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // 5 second delay
+      attempts++;
+    }
+  }
+
+  if (!completed) {
+    message.warning("局部重生成耗時超過預期。請稍後在畫廊中查看結果。");
+  }
+};
+
+// Use inpainting result
+const useInpaintingResult = async (result) => {
+  if (!result) return;
+
+  try {
+    // Get project ID from route
+    const projectId = route.params.projectId;
+
+    // Fetch image data
+    const imageResponse = await fetch(result.url);
+    const imageBlob = await imageResponse.blob();
+
+    // Create form data for saving
+    const formData = new FormData();
+    formData.append("projectId", projectId);
+    formData.append("file", imageBlob, `inpainted_${Date.now()}.jpg`);
+    formData.append("prompt", inpaintingPrompt.value);
+
+    // Include original parameters but update with inpainting parameters
+    const parameters = {
+      ...(originalImage.value.parameters || {}),
+      strength: inpaintingStrength.value,
+      steps: inpaintingSteps.value,
+      cfgScale: inpaintingGuidance.value,
+      inpainted: true,
+      sourceImageId: originalImage.value.id,
+      negativePrompt: negativePrompt.value,
+    };
+    formData.append("parameters", JSON.stringify(parameters));
+
+    // Save new image
+    const response = await api.post("/img/save", formData);
+    const newImageId = response.data.id;
+
+    message.success("重生成的圖像已儲存到專案");
+
+    // Navigate to generate page
+    router.push({
+      name: "ai-generate",
+      params: { projectId: projectId },
+    });
+  } catch (error) {
+    console.error("Failed to save inpainted result:", error);
+    message.error(`保存結果失敗: ${error.message}`);
+  }
+};
+
+// Save edits (without inpainting)
+const saveEdits = async () => {
+  if (!canvasRef.value || !originalImage.value) return;
+
+  try {
+    // Get edited image data
+    const editedImageDataUrl = canvasRef.value.toDataURL("image/png");
+
+    // Convert data URL to blob
+    const response = await fetch(editedImageDataUrl);
+    const blob = await response.blob();
+
+    // Create form data
+    const formData = new FormData();
+    formData.append("projectId", route.params.projectId);
+    formData.append("file", blob, `edited_${Date.now()}.png`);
+    formData.append("prompt", originalImage.value.prompt || "");
+
+    // Include original parameters
+    const parameters = {
+      ...(originalImage.value.parameters || {}),
+      edited: true,
+      sourceImageId: originalImage.value.id,
+    };
+    formData.append("parameters", JSON.stringify(parameters));
+
+    // Save image
+    const saveResponse = await api.post("/img/save", formData);
+
+    message.success("編輯已儲存");
+
+    // Return to generate page
+    router.push({
+      name: "ai-generate",
+      params: { projectId: route.params.projectId },
+    });
+  } catch (error) {
+    console.error("Failed to save edits:", error);
+    message.error(`保存編輯失敗: ${error.message}`);
+  }
+};
+</script>
