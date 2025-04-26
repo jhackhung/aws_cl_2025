@@ -248,9 +248,12 @@ const saveAndContinue = () => {
 
 <style scoped>
 .ai-generate-page {
-  min-height: 100vh;
+  min-height: 100vh; /* 改用最小高度而非固定高度 */
   width: 100%;
-  background-color: var(--bg-color, #f5f7fa);
+  display: flex;
+  flex-direction: column;
+  position: relative; /* 確保相對定位 */
+  overflow-y: auto; /* 允許垂直滾動 */
 }
 
 .check-icon {
@@ -286,6 +289,9 @@ const saveAndContinue = () => {
 }
 
 .page-content {
+  flex: 1;
+  overflow-y: auto; /* 確保內容可滾動 */
+  position: relative; /* 使用相對定位 */
   padding: 0 24px 24px 24px;
   width: 100%;
   box-sizing: border-box;
@@ -318,10 +324,15 @@ const saveAndContinue = () => {
 
 .images-grid {
   width: 100%;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 24px;
-  margin-top: 24px;
+  max-width: 100%;
+}
+
+.image-card {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 1; /* 保持寬高比 */
+  max-height: 400px; /* 設定最大高度 */
 }
 
 .images-grid-item {
@@ -338,6 +349,7 @@ const saveAndContinue = () => {
   width: 100%;
   display: flex;
   flex-direction: column;
+  object-fit: cover; /* 圖片適應容器 */
 }
 
 .image-container {

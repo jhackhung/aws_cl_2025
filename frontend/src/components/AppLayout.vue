@@ -33,9 +33,11 @@ const handleSidebarCollapse = (collapsed) => {
 .main-content {
   flex: 1;
   margin-left: 250px;
-  transition: all 0.3s ease;
+  transition: margin-left 0.3s ease;
   width: calc(100% - 250px);
-  overflow-x: hidden;
+  overflow-y: auto; /* 確保主內容區可滾動 */
+  height: 100vh; /* 使用視口高度 */
+  position: relative; /* 使用相對定位 */
 }
 
 .sidebar-collapsed .main-content {
