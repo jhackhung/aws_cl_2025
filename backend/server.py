@@ -16,7 +16,7 @@ DATABASE_USERNAME = os.getenv('DATABASE_USERNAME')
 DATABASE_ENDPOINT = os.getenv('DATABASE_ENDPOINT')
 
 from img_generate.img_generator import generate_images, save_images, get_image_size, process_images
-from img_generate.img_inpainting import inpainting_images
+from img_generate.img_inpainting import inpaint_images
 import uuid
 import threading
 import asyncio
@@ -116,7 +116,7 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
 def inpainting_image_logic(task_id, batch_count, text, imgs, mask_prompt,
                            mask_image, negative_prompt, height, width,
                            cfg_scale, seed):
-    img_list = inpainting_images(model_id=model_id,
+    img_list = inpaint_images(model_id=model_id,
                                  task_id=task_id,
                                  prompt=text,
                                  mask_prompt=mask_prompt,
