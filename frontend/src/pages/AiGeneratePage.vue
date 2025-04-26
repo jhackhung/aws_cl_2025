@@ -32,6 +32,13 @@
               </template>
               ★
             </NButton>
+            <NButton
+              class="optimize-button"
+              type="primary"
+              @click="regenerateImages"
+              title="優化提示詞"
+              >Generate</NButton
+            >
           </div>
           <NTag v-if="style" type="info">{{ style }}</NTag>
         </div>
@@ -45,54 +52,61 @@
         description="AI 正在生成您的設計，這可能需要一些時間..."
       >
         <div v-if="generatedImages.length" class="images-section">
-          <!-- 將圖片生成時間顯示為標題 -->
-          <div class="generation-batch-title">
-            <h4>生成於 {{ new Date().toLocaleString() }}</h4>
-          </div>
-          <!-- 水平滑動容器 -->
-          <div class="horizontal-scroll-container">
-            <div class="images-row">
-              <div
-                v-for="(image, index) in generatedImages.slice(0, 4)"
-                :key="index"
-                :class="[
-                  'image-card',
-                  { selected: selectedImages.includes(index) },
-                ]"
-                @click="toggleImageSelection(index)"
-                class="image-card-container"
-              >
-                <NImage
-                  :src="image"
-                  object-fit="cover"
-                  :alt="'生成圖像 ' + (index + 1)"
-                  class="generated-image"
-                  preview-disabled
-                />
-                <div class="image-overlay">
-                  <div class="selection-indicator">
-                    <NIcon
-                      size="24"
-                      class="check-icon"
-                      v-if="selectedImages.includes(index)"
-                      >✓</NIcon
-                    >
-                  </div>
-                  <div class="image-actions">
-                    <NButton
-                      circle
-                      quaternary
-                      @click.stop="previewImage(image)"
-                    >
-                      <template #icon>👁️</template>
-                    </NButton>
-                    <NButton
-                      circle
-                      quaternary
-                      @click.stop="downloadImage(image, index)"
-                    >
-                      <template #icon>↓</template>
-                    </NButton>
+          <!-- 將生成的圖片按批次分組顯示 -->
+          <div
+            v-for="(batch, batchIndex) in imageBatches"
+            :key="batchIndex"
+            class="image-batch"
+          >
+            <!-- 批次標題和時間戳 -->
+            <div class="generation-batch-title">
+              <h4>生成於 {{ formatTimestamp(batch[0]?.createdAt) }}</h4>
+            </div>
+            <!-- 水平滑動容器 -->
+            <div class="horizontal-scroll-container">
+              <div class="images-row">
+                <div
+                  v-for="image in batch"
+                  :key="image.id"
+                  :class="[
+                    'image-card',
+                    { selected: selectedImageIds.includes(image.id) },
+                  ]"
+                  @click="toggleImageSelection(image.id)"
+                  class="image-card-container"
+                >
+                  <NImage
+                    :src="image.url"
+                    object-fit="cover"
+                    :alt="'生成圖像'"
+                    class="generated-image"
+                    preview-disabled
+                  />
+                  <div class="image-overlay">
+                    <div class="selection-indicator">
+                      <NIcon
+                        size="24"
+                        class="check-icon"
+                        v-if="selectedImageIds.includes(image.id)"
+                        >✓</NIcon
+                      >
+                    </div>
+                    <div class="image-actions">
+                      <NButton
+                        circle
+                        quaternary
+                        @click.stop="previewImage(image.url)"
+                      >
+                        <template #icon>👁️</template>
+                      </NButton>
+                      <NButton
+                        circle
+                        quaternary
+                        @click.stop="downloadImage(image.url, image.id)"
+                      >
+                        <template #icon>↓</template>
+                      </NButton>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -190,9 +204,60 @@ const style = computed(() => {
 });
 
 // 獲取生成的圖像
-const generatedImages = computed(() =>
-  imageStore.generatedImages.map((img) => img.url)
-);
+const generatedImages = computed(() => imageStore.generatedImages);
+
+// 按批次分組顯示圖像 - 根據創建時間的間隔分組
+const imageBatches = computed(() => {
+  if (!generatedImages.value.length) return [];
+
+  // 創建批次數組
+  const batches = [];
+  let currentBatch = [];
+  let lastTimestamp = null;
+
+  // 對生成的圖像進行排序和分組
+  generatedImages.value.forEach((image, index) => {
+    const imageTimestamp = new Date(image.createdAt).getTime();
+
+    // 如果是第一張圖片或時間接近上一張(同一批次)
+    if (index === 0 || Math.abs(imageTimestamp - lastTimestamp) < 2000) {
+      currentBatch.push(image);
+    } else {
+      // 開始新的批次
+      batches.push([...currentBatch]);
+      currentBatch = [image];
+    }
+
+    lastTimestamp = imageTimestamp;
+  });
+
+  // 添加最後一批
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
+  }
+
+  return batches;
+});
+
+// 格式化時間戳
+const formatTimestamp = (timestamp) => {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+};
+
+// 選中圖片ID數組
+const selectedImageIds = ref([]);
+
+// 監視選中的圖片ID更新選中圖片數組
+selectedImages.value = computed(() => {
+  return selectedImageIds.value
+    .map((id) => {
+      const index = generatedImages.value.findIndex((img) => img.id === id);
+      return index !== -1 ? index : null;
+    })
+    .filter((index) => index !== null);
+});
 
 // 初始載入數據
 onMounted(() => {
@@ -212,11 +277,11 @@ onMounted(() => {
 });
 
 // 切換圖像選擇狀態
-const toggleImageSelection = (index) => {
-  if (selectedImages.value.includes(index)) {
-    selectedImages.value = selectedImages.value.filter((i) => i !== index);
+const toggleImageSelection = (id) => {
+  if (selectedImageIds.value.includes(id)) {
+    selectedImageIds.value = selectedImageIds.value.filter((i) => i !== id);
   } else {
-    selectedImages.value.push(index);
+    selectedImageIds.value.push(id);
   }
 };
 
@@ -227,10 +292,10 @@ const previewImage = (image) => {
 };
 
 // 下載圖像
-const downloadImage = (imageUrl, index) => {
+const downloadImage = (imageUrl, id) => {
   const a = document.createElement("a");
   a.href = imageUrl;
-  a.download = `generated-image-${index + 1}.png`;
+  a.download = `generated-image-${id}.png`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
