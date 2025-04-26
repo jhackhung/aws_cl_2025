@@ -484,7 +484,10 @@ const fetchImagesFromTaskId = async (taskId) => {
         imageStore.addGeneratedImages(newImages);
       } else {
         // 否則直接更新 generatedImages
-        imageStore.generatedImages = [...newImages];
+        imageStore.generatedImages = [
+          ...newImages,
+          ...imageStore.generatedImages,
+        ];
       }
 
       console.log(`成功載入 ${newImages.length} 張生成的圖像`);
@@ -519,33 +522,60 @@ const startProgressAnimation = () => {
   // 清除可能存在的計時器
   clearProgressAnimation();
 
-  // 設置新的計時器，模擬進度增加
+  // 設置初始進度
+  generationProgress.value = 0;
+
+  // 計算每秒大約應增加的進度 (95% / 20秒 ≈ 4.75%/秒)
+  const baseIncrement = 4.75;
+
+  // 設置新的計時器，使用隨機增量模擬進度
   progressTimer.value = setInterval(() => {
-    // 非線性進度增加，開始快，接近90%時變慢
-    if (generationProgress.value < 30) {
-      generationProgress.value += 3;
-    } else if (generationProgress.value < 60) {
-      generationProgress.value += 2;
+    // 根據當前進度決定增量策略
+    let increment;
+
+    if (generationProgress.value < 60) {
+      // 前60%進度：較大的隨機增量，進展較快
+      increment = (Math.random() * 0.8 + 0.6) * baseIncrement; // 0.6~1.4倍基本增量
     } else if (generationProgress.value < 85) {
-      generationProgress.value += 1;
-    } else if (generationProgress.value < 90) {
-      generationProgress.value += 0.5;
+      // 60%-85%進度：中等隨機增量
+      increment = (Math.random() * 0.6 + 0.4) * baseIncrement; // 0.4~1.0倍基本增量
+    } else if (generationProgress.value < 95) {
+      // 85%-95%進度：較小的隨機增量
+      increment = (Math.random() * 0.4 + 0.2) * baseIncrement; // 0.2~0.6倍基本增量
+    } else {
+      // 95%以上：極慢增長
+      increment = (Math.random() * 0.1 + 0.05) * baseIncrement; // 0.05~0.15倍基本增量
     }
 
-    // 限制最大進度為90%，直到任務真正完成
-    if (generationProgress.value >= 90) {
-      generationProgress.value = 90;
+    // 增加進度
+    generationProgress.value += increment;
+
+    // 處理邊界情況
+    if (generationProgress.value >= 99.5) {
+      generationProgress.value = 99.5;
       clearProgressAnimation();
     }
-  }, 300);
+
+    // 如果API返回完成，則立即設為100%
+    if (generationProgress.value >= 100) {
+      generationProgress.value = 100;
+      clearProgressAnimation();
+    }
+  }, 1000); // 每秒更新一次
 };
 
-// 清除進度條計時器
+// 清除進度条計時器
 const clearProgressAnimation = () => {
   if (progressTimer.value) {
     clearInterval(progressTimer.value);
     progressTimer.value = null;
   }
+};
+
+// 在API成功返回後設置為100%
+const completeProgress = () => {
+  generationProgress.value = 100;
+  clearProgressAnimation();
 };
 
 // 組件卸載時清理計時器
@@ -589,14 +619,148 @@ const downloadImage = (imageUrl, id) => {
 
 // 重新生成圖像
 const regenerateImages = async () => {
+  // 檢查是否有提示詞
+  if (!editablePrompt.value.trim()) {
+    message.warning("請先輸入提示詞");
+    return;
+  }
+
   try {
     loading.value = true;
-    await imageStore.generateImages({
-      ...generationParams.value,
-      projectId: projectId.value !== "temp" ? projectId.value : null,
+    // 重置進度條
+    generationProgress.value = 0;
+    // 開始進度條動畫
+    startProgressAnimation();
+
+    // 創建表單數據
+    const formData = new FormData();
+    formData.append("batch_count", generationParams.value.batchCount || 4);
+    formData.append("text", editablePrompt.value);
+    formData.append("cfg_scale", generationParams.value.cfgScale || 7.5);
+
+    // 如果有種子值且不是隨機種子(-1)，則添加
+    if (generationParams.value.seed && generationParams.value.seed !== -1) {
+      formData.append("seed", generationParams.value.seed);
+    }
+
+    // 如果有選中的圖片，先儲存這些圖片並獲取真正的ID
+    const savedImageRefs = [];
+
+    // 處理選中的圖片作為參考圖像
+    if (selectedImageIds.value.length > 0) {
+      for (const selectedId of selectedImageIds.value) {
+        // 找到對應的圖片對象
+        const selectedImage = generatedImages.value.find(
+          (img) => img.id === selectedId
+        );
+        if (selectedImage) {
+          try {
+            // 呼叫 /img/save API 儲存圖片
+            const saveResponse = await fetch(
+              "https://ec2.sausagee.party/img/save",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  url: selectedImage.url,
+                  prompt: selectedImage.prompt || editablePrompt.value,
+                  parameters: selectedImage.parameters || {},
+                }),
+              }
+            );
+
+            if (saveResponse.ok) {
+              const savedData = await saveResponse.json();
+              // 把返回的ID加入參考圖片清單
+              if (savedData && savedData.id) {
+                savedImageRefs.push(savedData.id);
+                console.log(`已儲存參考圖片 ID: ${savedData.id}`);
+              }
+            } else {
+              console.error(`儲存圖片失敗: ${saveResponse.status}`);
+            }
+          } catch (saveError) {
+            console.error("儲存參考圖片時發生錯誤:", saveError);
+          }
+        }
+      }
+    }
+
+    // 處理儲存後的圖片ID作為參考圖像
+    if (savedImageRefs.length > 0) {
+      // 將儲存的圖片ID數組轉換為JSON字符串
+      formData.append("imgs", JSON.stringify(savedImageRefs));
+
+      // 添加相似度強度參數 (默認為0.5)
+      formData.append(
+        "similarityStrength",
+        generationParams.value.similarityStrength || 0.5
+      );
+    }
+
+    // 添加尺寸參數與其他參數 - 作為單獨的字段，不是JSON
+    const height = generationParams.value.height || 1024;
+    const width = generationParams.value.width || 1024;
+    const steps = generationParams.value.steps || 30;
+
+    // 直接添加參數，不將其整合為JSON字符串
+    formData.append("parameters[width]", width);
+    formData.append("parameters[height]", height);
+    formData.append("parameters[steps]", steps);
+
+    // 如果有風格，添加風格參數
+    if (generationParams.value.style) {
+      formData.append("parameters[style]", generationParams.value.style);
+    }
+    // 發送請求到 API 端點
+    const response = await fetch("https://ec2.sausagee.party/img/generate", {
+      method: "POST",
+      body: formData,
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("生成圖像失敗:", response.status, errorText);
+      throw new Error(`API 錯誤: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // 檢查回應中是否包含任務 ID
+    if (!data.id) {
+      throw new Error("API 返回的數據中缺少任務 ID");
+    }
+
+    const taskId = data.id;
+    console.log("生成任務已啟動，任務 ID:", taskId);
+
+    // 保存生成參數到 store (更新當前使用的參數)
+    imageStore.updateGenerationParams({
+      prompt: editablePrompt.value,
+      style: generationParams.value.style,
+      size: generationParams.value.size,
+      steps: generationParams.value.steps || 30,
+      cfgScale: generationParams.value.cfgScale || 7.5,
+      seed: generationParams.value.seed || -1,
+      batchCount: generationParams.value.batchCount || 4,
+      taskId: taskId,
+    });
+
+    // 使用已有的 fetchImagesFromTaskId 函數來輪詢結果
+    await fetchImagesFromTaskId(taskId);
+
+    // 清除選中的圖片 (只留下那些已被保存的)
+    selectedImageIds.value = selectedImageIds.value.filter((id) =>
+      savedImageIds.value.includes(id)
+    );
+
+    message.success("圖像生成成功");
   } catch (error) {
     console.error("生成圖像失敗:", error);
+    message.error("生成圖像失敗: " + (error.message || "未知錯誤"));
+    clearProgressAnimation();
   } finally {
     loading.value = false;
   }
