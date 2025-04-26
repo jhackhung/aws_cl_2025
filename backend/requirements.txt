@@ -2,3 +2,6 @@ fastapi
 dotenv
 create_project
 mysql-connector-python
+boto3
+botocore
+Pillow
