@@ -11,6 +11,7 @@
   "dependencies": {
     "@vicons/antd": "^0.13.0",
     "axios": "^1.9.0",
+    "gsap": "^3.12.7",
     "my-design-ai": "file:",
     "naive-ui": "^2.41.0",
     "pinia": "^3.0.2",

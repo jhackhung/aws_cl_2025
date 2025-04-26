@@ -108,11 +108,34 @@
       v-model:show="showCreateModal"
       preset="card"
       title="創建新專案"
-      size="huge"
       :closable="true"
-      style="max-width: 900px"
+      class="enhanced-project-modal"
+      style="
+        max-width: 900px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        border-radius: 12px;
+      "
     >
       <div class="modal-content">
+        <div class="create-project-header">
+          <div class="step-indicator">
+            <div class="step active">
+              <div class="step-number">1</div>
+              <div class="step-label">基本信息</div>
+            </div>
+            <div class="step-line"></div>
+            <div
+              class="step"
+              :class="{
+                active: newProject.name && newProject.name.trim().length > 0,
+              }"
+            >
+              <div class="step-number">2</div>
+              <div class="step-label">選擇模板</div>
+            </div>
+          </div>
+        </div>
+
         <NForm
           ref="formRef"
           :model="newProject"
@@ -120,61 +143,90 @@
           label-placement="left"
           label-width="100"
         >
-          <NFormItem label="專案名稱" path="name" required>
-            <NInput
-              v-model:value="newProject.name"
-              placeholder="請輸入專案名稱"
-              clearable
-              autofocus
-            />
-          </NFormItem>
+          <div class="form-section">
+            <h3 class="section-title">填寫專案信息</h3>
+            <div class="section-divider"></div>
 
-          <NFormItem label="專案描述" path="description">
-            <NInput
-              v-model:value="newProject.description"
-              type="textarea"
-              placeholder="請輸入專案描述"
-              :autosize="{ minRows: 3, maxRows: 5 }"
-            />
-          </NFormItem>
-
-          <NFormItem label="標籤">
-            <div v-if="isAddingTag" class="tag-input-area">
+            <NFormItem label="專案名稱" path="name" required>
               <NInput
-                v-model:value="newTagName"
-                placeholder="輸入標籤名稱"
-                @keydown.enter.prevent="addNewTag"
+                v-model:value="newProject.name"
+                placeholder="請輸入專案名稱"
+                clearable
+                autofocus
+                class="enhanced-input"
               />
-              <NButton type="primary" size="small" @click="addNewTag"
-                >添加</NButton
-              >
-              <NButton size="small" @click="isAddingTag = false">取消</NButton>
-            </div>
-            <div v-else class="tags-area">
-              <div class="tags-display">
-                <NTag
-                  v-for="tag in newProject.tags"
-                  :key="tag"
-                  type="info"
-                  closable
-                  @close="removeTag(tag)"
-                >
-                  {{ tag }}
-                </NTag>
-                <NButton
-                  size="small"
-                  class="add-tag-btn"
-                  @click="isAddingTag = true"
-                >
-                  <NIcon class="tag-icon"><PlusOutlined /></NIcon>
-                  添加標籤
-                </NButton>
-              </div>
-            </div>
-          </NFormItem>
+            </NFormItem>
 
-          <NFormItem label="專案模板" v-if="templates.length">
-            <NDivider>選擇一個模板開始</NDivider>
+            <NFormItem label="專案描述" path="description">
+              <NInput
+                v-model:value="newProject.description"
+                type="textarea"
+                placeholder="請輸入專案描述"
+                :autosize="{ minRows: 3, maxRows: 5 }"
+                class="enhanced-input"
+              />
+            </NFormItem>
+
+            <NFormItem label="標籤">
+              <div v-if="isAddingTag" class="tag-input-area">
+                <NInput
+                  v-model:value="newTagName"
+                  placeholder="輸入標籤名稱"
+                  @keydown.enter.prevent="addNewTag"
+                  class="enhanced-input"
+                />
+                <div class="tag-actions">
+                  <NButton
+                    type="primary"
+                    size="small"
+                    @click="addNewTag"
+                    class="tag-btn"
+                    >添加</NButton
+                  >
+                  <NButton
+                    size="small"
+                    @click="isAddingTag = false"
+                    class="tag-btn"
+                    >取消</NButton
+                  >
+                </div>
+              </div>
+              <div v-else class="tags-area">
+                <div class="tags-display">
+                  <NTag
+                    v-for="tag in newProject.tags"
+                    :key="tag"
+                    type="info"
+                    closable
+                    @close="removeTag(tag)"
+                    class="enhanced-tag"
+                  >
+                    {{ tag }}
+                  </NTag>
+                  <NButton
+                    size="small"
+                    class="add-tag-btn"
+                    @click="isAddingTag = true"
+                  >
+                    <NIcon class="tag-icon"><PlusOutlined /></NIcon>
+                    添加標籤
+                  </NButton>
+                </div>
+              </div>
+            </NFormItem>
+          </div>
+
+          <NFormItem
+            label="專案模板"
+            v-if="templates.length"
+            class="template-section"
+          >
+            <h3 class="section-title">選擇模板</h3>
+            <div class="section-divider"></div>
+            <p class="template-description">
+              選擇一個模板作為專案的起點，快速開始您的設計
+            </p>
+
             <NRadioGroup
               v-model:value="selectedTemplate"
               class="template-radio-group"
@@ -197,12 +249,14 @@
                         :alt="template.name"
                       />
                       <div class="template-overlay">
-                        <NIcon
-                          size="24"
+                        <div
+                          class="template-check"
                           v-if="selectedTemplate === template.id"
                         >
-                          <CheckCircleFilled />
-                        </NIcon>
+                          <NIcon size="24">
+                            <CheckCircleFilled />
+                          </NIcon>
+                        </div>
                       </div>
                     </div>
                     <div class="template-info">
@@ -219,12 +273,15 @@
 
       <template #footer>
         <div class="modal-footer">
-          <NButton @click="showCreateModal = false">取消</NButton>
+          <NButton @click="showCreateModal = false" class="cancel-button"
+            >取消</NButton
+          >
           <NButton
             type="primary"
             :disabled="!newProject.name"
             :loading="creatingProject"
             @click="createProject"
+            class="create-button"
           >
             創建專案
           </NButton>
@@ -686,48 +743,210 @@ const createProject = async () => {
   margin-top: 16px;
 }
 
-@media (max-width: 768px) {
-  .filter-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+/* Modal styling enhancements */
+.enhanced-project-modal :deep(.n-card-header__main) {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #333;
+}
 
-  .search-input {
-    width: 100%;
-  }
+.enhanced-project-modal :deep(.n-card) {
+  border-radius: 12px;
+  overflow: hidden;
+}
 
-  .filter-controls {
-    flex-direction: column;
-    align-items: flex-start;
-    width: 100%;
-  }
+.enhanced-project-modal :deep(.n-card-header) {
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
 
-  .tags-container,
-  .sort-container {
-    width: 100%;
-    margin-top: 8px;
-  }
+.create-project-header {
+  margin-bottom: 24px;
+}
 
-  .sort-select {
-    width: 100%;
-  }
+.step-indicator {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin: 16px 0;
+}
 
-  .template-info {
-    padding: 8px;
-  }
+.step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0.6;
+  transition: all 0.3s ease;
+}
 
-  .template-info h3 {
-    font-size: 14px;
-  }
+.step.active {
+  opacity: 1;
+}
 
-  .template-info p {
-    font-size: 12px;
-  }
+.step-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f0f0f0;
+  color: #888;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
 
-  .header-content {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
+.step.active .step-number {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.step-label {
+  font-weight: 500;
+  color: #888;
+  transition: all 0.3s ease;
+}
+
+.step.active .step-label {
+  color: var(--primary-color);
+}
+
+.step-line {
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(to right, var(--primary-color), #f0f0f0);
+  margin: 0 10px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 8px 0;
+}
+
+.section-divider {
+  height: 1px;
+  background-color: rgba(0, 0, 0, 0.06);
+  margin-bottom: 18px;
+}
+
+.form-section {
+  margin-bottom: 28px;
+}
+
+.enhanced-input {
+  transition: all 0.3s ease;
+}
+
+.enhanced-input:hover {
+  border-color: var(--primary-color);
+}
+
+.enhanced-tag {
+  padding: 5px 10px;
+  border-radius: 20px;
+}
+
+.tag-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tag-btn {
+  transition: all 0.2s ease;
+}
+
+.template-section {
+  margin-top: 16px;
+}
+
+.template-description {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.template-card {
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.08);
+}
+
+.template-overlay {
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.03);
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.template-card:hover .template-overlay {
+  opacity: 1;
+}
+
+.selected-template .template-overlay {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.template-check {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 8px;
+}
+
+.cancel-button,
+.create-button {
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.create-button {
+  padding: 8px 24px;
+  font-size: 15px;
+}
+
+:root.dark .enhanced-project-modal :deep(.n-card-header__main) {
+  color: #e0e0e0;
+}
+
+:root.dark .section-title {
+  color: #e0e0e0;
+}
+
+:root.dark .step-number {
+  background-color: #333;
+  color: #aaa;
+}
+
+:root.dark .step-line {
+  background: linear-gradient(to right, var(--primary-color), #333);
+}
+
+:root.dark .section-divider {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+:root.dark .template-overlay {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+:root.dark .selected-template .template-overlay {
+  background: rgba(255, 255, 255, 0.1);
 }
 </style>

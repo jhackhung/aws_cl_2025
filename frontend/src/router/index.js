@@ -1,6 +1,8 @@
 import { defineAsyncComponent } from "vue";
 
 // 使用非同步元件載入，提高性能
+const HomePage = defineAsyncComponent(() => import("../pages/HomePage.vue"));
+
 const ProjectPage = defineAsyncComponent(() =>
   import("../pages/ProjectPage.vue")
 );
@@ -27,7 +29,7 @@ const NotFoundPage = defineAsyncComponent(() =>
 const routes = [
   {
     path: "/",
-    component: ProjectPage,
+    component: HomePage,
     name: "home",
   },
   {

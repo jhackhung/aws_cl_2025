@@ -1,11 +1,11 @@
 <template>
   <div class="settings-container">
-    <h1 class="settings-title">{{ t('settings') }}</h1>
-    
+    <h1 class="settings-title">{{ t("settings") }}</h1>
+
     <div class="settings-section">
-      <h2>{{ t('languageSettings') }}</h2>
+      <h2>{{ t("languageSettings") }}</h2>
       <div class="setting-item">
-        <span class="setting-label">{{ t('selectLanguage') }}</span>
+        <span class="setting-label">{{ t("selectLanguage") }}</span>
         <NSelect
           v-model:value="currentLang"
           :options="languageOptions"
@@ -14,11 +14,11 @@
         />
       </div>
     </div>
-    
+
     <div class="settings-section">
-      <h2>{{ t('themeSettings') }}</h2>
+      <h2>{{ t("themeSettings") }}</h2>
       <div class="setting-item">
-        <span class="setting-label">{{ t('darkMode') }}</span>
+        <span class="setting-label">{{ t("darkMode") }}</span>
         <NSpace align="center">
           <span>🌞</span>
           <NSwitch :value="isDarkMode" @update:value="toggleTheme" />
@@ -26,40 +26,79 @@
         </NSpace>
       </div>
     </div>
+
+    <div class="settings-section">
+      <h2>{{ t("instructions") }}</h2>
+      <div class="setting-item">
+        <span class="setting-label">{{ t("Go To ") }}</span>
+        <NButton type="primary" @click="goToHomepage">
+          <template #icon>
+            <n-icon><HomeIcon /></n-icon>
+          </template>
+          {{ t("homePage") }}
+        </NButton>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { NSelect, NSwitch, NSpace } from 'naive-ui';
-import { useTranslation } from '../composables/useTranslation';
-import { useTheme } from '../composables/useTheme';
-import { useSettingsStore } from '../stores/settings';
+import { ref, computed, h } from "vue";
+import { NSelect, NSwitch, NSpace, NButton, NIcon } from "naive-ui";
+import { useTranslation } from "../composables/useTranslation";
+import { useTheme } from "../composables/useTheme";
+import { useSettingsStore } from "../stores/settings";
+import { useRouter } from "vue-router";
 
+const router = useRouter();
 const { t, currentLanguage } = useTranslation();
 const { isDarkMode, toggleTheme } = useTheme();
 const settingsStore = useSettingsStore();
 
 const currentLang = computed({
   get: () => currentLanguage.value,
-  set: (value) => settingsStore.setLanguage(value)
+  set: (value) => settingsStore.setLanguage(value),
 });
+
+// Home icon component
+const HomeIcon = () =>
+  h(
+    "svg",
+    {
+      xmlns: "http://www.w3.org/2000/svg",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    [
+      h("path", { d: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" }),
+      h("polyline", { points: "9 22 9 12 15 12 15 22" }),
+    ]
+  );
 
 // 語言選項
 const languageOptions = [
   {
     label: "中文",
-    value: "zh-TW"
+    value: "zh-TW",
   },
   {
     label: "English",
-    value: "en-US"
-  }
+    value: "en-US",
+  },
 ];
 
 // 處理語言選擇
 function handleLanguageSelect(value) {
   settingsStore.setLanguage(value);
+}
+
+// 返回首頁
+function goToHomepage() {
+  router.push("/");
 }
 </script>
 
