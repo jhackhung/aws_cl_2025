@@ -74,9 +74,6 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
             width=width,
             cfg_scale=cfg_scale,
             seed=seed)
-        task_result = save_images(task_id, img_list)
-        
-
     else:
         img_list = generate_images(model_id=model_id,
                                             task_id=task_id,
@@ -86,7 +83,8 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
                                             width=width,
                                             cfg_scale=cfg_scale,
                                             seed=seed)
-        task_result = save_images(task_id, img_list)
+    saved_paths = save_images(task_id, img_list)
+    task_result[task_id] = saved_paths
 
 @app.get("/")
 async def root():
@@ -296,9 +294,9 @@ async def get_image(id: str):
     }  # Placeholder
 
 # Create MySQL connection
-conn = mysql.connector.connect(
-    host=DATABASE_ENDPOINT,
-    user=DATABASE_USERNAME,
-    password=DATABASE_PASSWORD,
-     database="backend"
-)
+# conn = mysql.connector.connect(
+#     host=DATABASE_ENDPOINT,
+#     user=DATABASE_USERNAME,
+#     password=DATABASE_PASSWORD,
+#      database="backend"
+# )
