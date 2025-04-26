@@ -17,6 +17,7 @@ import threading
 import asyncio
 import logging
 import base64
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
@@ -29,6 +30,13 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 app.mount("/generated_images",
           StaticFiles(directory="generated_images"),
           name="static")
