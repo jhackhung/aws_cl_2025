@@ -403,23 +403,39 @@ const features = [
   },
 ];
 
-// Design Process steps
-const designSteps = computed(() => [
+// Chinese and English version of design steps
+const designSteps = ref([
   {
-    title: t("designInputTitle"),
-    description: t("designInputDescription"),
+    title: "設計參數與參考材料輸入", // Chinese: Design Parameters and Reference Material Input
+    titleEn: "Design Parameters and Reference Material Input",
+    description:
+      "設置色彩、材質、尺寸等設計參數，或利用網路爬蟲系統尋找市場趨勢和靈感。",
+    descriptionEn:
+      "Set design parameters such as colors, materials, dimensions, or use our web crawler system to find market trends and inspiration.",
   },
   {
-    title: t("aiGenerateTitle"),
-    description: t("aiGenerateDescription"),
+    title: "AI 設計概念生成", // Chinese: AI Design Concept Generation
+    titleEn: "AI Design Concept Generation",
+    description:
+      "我們的平台利用多種 AI 模型，包括 Stability AI、Titan ImageGenerator G1 v2 和 Nova Canvas，生成多樣化的設計選項。",
+    descriptionEn:
+      "Our platform leverages multiple AI models, including Stability AI, Titan ImageGenerator G1 v2, and Nova Canvas, to generate diverse design options.",
   },
   {
-    title: t("designerRevisionTitle"),
-    description: t("designerRevisionDescription"),
+    title: "設計師修訂", // Chinese: Designer Revision
+    titleEn: "Designer Revision",
+    description:
+      "使用 Nova Canvas 工具手動修改圖像，或上傳您自己的藍圖以進行 AI 增強和整合的三步驟過程。",
+    descriptionEn:
+      "Use Nova Canvas tools to manually modify images or upload your own blueprint for a three-step process of AI enhancement and integration.",
   },
   {
-    title: t("integrationTitle"),
-    description: t("integrationDescription"),
+    title: "整合到品牌設計庫", // Chinese: Integration into Brand Design Gallery
+    titleEn: "Integration into Brand Design Gallery",
+    description:
+      "將設計圖像保存到您的專案中，將專案保存為模板，並為新圖像添加標籤。",
+    descriptionEn:
+      "Save designed images to your projects, save projects as templates, and add tags to new images.",
   },
 ]);
 const galleryItems = ref([

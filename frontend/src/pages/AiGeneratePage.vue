@@ -504,6 +504,9 @@ const saveAndContinue = () => {
       projectId: projectId.value !== "temp" ? projectId.value : "temp",
       imageId: savedImage.id,
     },
+    state: {
+      selectedImage: savedImage
+    }
   });
 };
 

@@ -1,11 +1,10 @@
 <template>
-
   <div class="project-page">
     <NLayoutHeader class="page-header">
       <div class="header-content">
         <div class="title-section">
-          <h1>專案管理</h1>
-          <p class="subtitle">管理您的設計專案</p>
+          <h1>設計畫廊</h1>
+          <p class="subtitle">品牌設計資料庫</p>
         </div>
         <NButton type="primary" size="large" @click="showCreateModal = true">
           <template #icon>
@@ -24,21 +23,32 @@
       <div class="showcase-header">
         <h2>推薦模板</h2>
         <NButton text @click="showAllTemplates = !showAllTemplates">
-          {{ showAllTemplates ? '收起' : '查看全部' }}
+          {{ showAllTemplates ? "收起" : "查看全部" }}
           <template #icon>
             <NIcon>
-              <component :is="showAllTemplates ? 'UpOutlined' : 'DownOutlined'"></component>
+              <component
+                :is="showAllTemplates ? 'UpOutlined' : 'DownOutlined'"
+              ></component>
             </NIcon>
           </template>
         </NButton>
       </div>
 
       <div class="template-carousel">
-        <div v-for="template in displayedTemplates" :key="template.id" class="template-item"
-          @click="selectTemplateAndCreate(template)">
+        <div
+          v-for="template in displayedTemplates"
+          :key="template.id"
+          class="template-item"
+          @click="selectTemplateAndCreate(template)"
+        >
           <div class="template-preview">
-            <NImage :src="template.thumbnail" object-fit="cover" :preview-disabled="true"
-              fallback-src="/placeholder-image.png" :alt="template.name" />
+            <NImage
+              :src="template.thumbnail"
+              object-fit="cover"
+              :preview-disabled="true"
+              fallback-src="/placeholder-image.png"
+              :alt="template.name"
+            />
             <div class="template-quick-actions">
               <NButton type="primary" size="small">快速使用</NButton>
             </div>
@@ -46,8 +56,13 @@
           <div class="template-meta">
             <h3>{{ template.name }}</h3>
             <div class="template-tags">
-              <NTag v-for="(tag, index) in getTemplateTags(template)" :key="index" size="small" :bordered="false"
-                :color="{ color: getTagColor(tag) }">
+              <NTag
+                v-for="(tag, index) in getTemplateTags(template)"
+                :key="index"
+                size="small"
+                :bordered="false"
+                :color="{ color: getTagColor(tag) }"
+              >
                 {{ tag }}
               </NTag>
             </div>
@@ -61,7 +76,12 @@
         <div class="filters-section">
           <div class="filter-header">
             <h2>專案列表</h2>
-            <NInput v-model:value="searchQuery" placeholder="搜尋專案..." clearable class="search-input">
+            <NInput
+              v-model:value="searchQuery"
+              placeholder="搜尋專案..."
+              clearable
+              class="search-input"
+            >
               <template #prefix>
                 <NIcon>
                   <SearchOutlined />
@@ -73,13 +93,22 @@
           <div class="filter-controls">
             <div class="tags-container">
               <span class="filter-label">標籤篩選：</span>
-              <TagSelector v-if="availableTags.length" :tags="availableTags" v-model:selected="selectedTags" />
+              <TagSelector
+                v-if="availableTags.length"
+                :tags="availableTags"
+                v-model:selected="selectedTags"
+              />
               <span v-else class="no-tags">暫無標籤</span>
             </div>
 
             <div class="sort-container">
               <span class="filter-label">排序方式：</span>
-              <NSelect v-model:value="sortOption" :options="sortOptions" size="medium" class="sort-select" />
+              <NSelect
+                v-model:value="sortOption"
+                :options="sortOptions"
+                size="medium"
+                class="sort-select"
+              />
             </div>
           </div>
         </div>
@@ -88,20 +117,38 @@
           <div v-if="projects.length" class="projects-container">
             <div class="projects-grid">
               <NGrid x-gap="24" y-gap="24" cols="1 s:2 m:2 l:3 xl:4">
-                <NGridItem v-for="project in displayedProjects" :key="project.id">
-                  <ProjectCard :project="project" @click="openProject(project.id)" class="project-card" />
+                <NGridItem
+                  v-for="project in displayedProjects"
+                  :key="project.id"
+                >
+                  <ProjectCard
+                    :project="project"
+                    @click="openProject(project.id)"
+                    class="project-card"
+                  />
                 </NGridItem>
               </NGrid>
             </div>
 
             <div v-if="totalPages > 1" class="pagination-container">
-              <NPagination v-model:page="currentPage" :page-count="totalPages" :page-size="pageSize"
-                :item-count="filteredProjects.length" show-size-picker :page-sizes="[8, 12, 16, 24]"
-                @update:page-size="onPageSizeChange" />
+              <NPagination
+                v-model:page="currentPage"
+                :page-count="totalPages"
+                :page-size="pageSize"
+                :item-count="filteredProjects.length"
+                show-size-picker
+                :page-sizes="[8, 12, 16, 24]"
+                @update:page-size="onPageSizeChange"
+              />
             </div>
           </div>
 
-          <NResult v-else-if="!loading" status="info" title="沒有找到專案" description="還沒有創建任何專案，立即開始創建吧！">
+          <NResult
+            v-else-if="!loading"
+            status="info"
+            title="沒有找到專案"
+            description="還沒有創建任何專案，立即開始創建吧！"
+          >
             <template #footer>
               <NButton type="primary" @click="showCreateModal = true">
                 創建第一個專案
@@ -113,12 +160,18 @@
     </NLayoutContent>
 
     <!-- 創建專案對話框 -->
-    <NModal v-model:show="showCreateModal" preset="card" title="創建新專案" :closable="true" class="enhanced-project-modal"
+    <NModal
+      v-model:show="showCreateModal"
+      preset="card"
+      title="創建新專案"
+      :closable="true"
+      class="enhanced-project-modal"
       style="
         max-width: 900px;
         box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
         border-radius: 12px;
-      ">
+      "
+    >
       <div class="modal-content">
         <div class="create-project-header">
           <div class="step-indicator">
@@ -127,46 +180,90 @@
               <div class="step-label">基本信息</div>
             </div>
             <div class="step-line"></div>
-            <div class="step" :class="{
-              active: newProject.name && newProject.name.trim().length > 0,
-            }">
+            <div
+              class="step"
+              :class="{
+                active: newProject.name && newProject.name.trim().length > 0,
+              }"
+            >
               <div class="step-number">2</div>
               <div class="step-label">選擇模板</div>
             </div>
           </div>
         </div>
 
-        <NForm ref="formRef" :model="newProject" :rules="formRules" label-placement="left" label-width="100">
+        <NForm
+          ref="formRef"
+          :model="newProject"
+          :rules="formRules"
+          label-placement="left"
+          label-width="100"
+        >
           <div class="form-section">
             <h3 class="section-title">填寫專案信息</h3>
             <div class="section-divider"></div>
 
             <NFormItem label="專案名稱" path="name" required>
-              <NInput v-model:value="newProject.name" placeholder="請輸入專案名稱" clearable autofocus
-                class="enhanced-input" />
+              <NInput
+                v-model:value="newProject.name"
+                placeholder="請輸入專案名稱"
+                clearable
+                autofocus
+                class="enhanced-input"
+              />
             </NFormItem>
 
             <NFormItem label="專案描述" path="description">
-              <NInput v-model:value="newProject.description" type="textarea" placeholder="請輸入專案描述"
-                :autosize="{ minRows: 3, maxRows: 5 }" class="enhanced-input" />
+              <NInput
+                v-model:value="newProject.description"
+                type="textarea"
+                placeholder="請輸入專案描述"
+                :autosize="{ minRows: 3, maxRows: 5 }"
+                class="enhanced-input"
+              />
             </NFormItem>
 
             <NFormItem label="標籤">
               <div v-if="isAddingTag" class="tag-input-area">
-                <NInput v-model:value="newTagName" placeholder="輸入標籤名稱" @keydown.enter.prevent="addNewTag"
-                  class="enhanced-input" />
+                <NInput
+                  v-model:value="newTagName"
+                  placeholder="輸入標籤名稱"
+                  @keydown.enter.prevent="addNewTag"
+                  class="enhanced-input"
+                />
                 <div class="tag-actions">
-                  <NButton type="primary" size="small" @click="addNewTag" class="tag-btn">添加</NButton>
-                  <NButton size="small" @click="isAddingTag = false" class="tag-btn">取消</NButton>
+                  <NButton
+                    type="primary"
+                    size="small"
+                    @click="addNewTag"
+                    class="tag-btn"
+                    >添加</NButton
+                  >
+                  <NButton
+                    size="small"
+                    @click="isAddingTag = false"
+                    class="tag-btn"
+                    >取消</NButton
+                  >
                 </div>
               </div>
               <div v-else class="tags-area">
                 <div class="tags-display">
-                  <NTag v-for="tag in newProject.tags" :key="tag" type="info" closable @close="removeTag(tag)"
-                    class="enhanced-tag">
+                  <NTag
+                    v-for="tag in newProject.tags"
+                    :key="tag"
+                    type="info"
+                    closable
+                    @close="removeTag(tag)"
+                    class="enhanced-tag"
+                  >
                     {{ tag }}
                   </NTag>
-                  <NButton size="small" class="add-tag-btn" @click="isAddingTag = true">
+                  <NButton
+                    size="small"
+                    class="add-tag-btn"
+                    @click="isAddingTag = true"
+                  >
                     <NIcon class="tag-icon">
                       <PlusOutlined />
                     </NIcon>
@@ -177,24 +274,43 @@
             </NFormItem>
           </div>
 
-          <NFormItem label="專案模板" v-if="templates.length" class="template-section">
+          <NFormItem
+            label="專案模板"
+            v-if="templates.length"
+            class="template-section"
+          >
             <h3 class="section-title">選擇模板</h3>
             <div class="section-divider"></div>
             <p class="template-description">
               選擇一個模板作為專案的起點，快速開始您的設計
             </p>
 
-            <NRadioGroup v-model:value="selectedTemplate" class="template-radio-group">
+            <NRadioGroup
+              v-model:value="selectedTemplate"
+              class="template-radio-group"
+            >
               <NGrid x-gap="16" y-gap="16" cols="1 s:2 m:3" responsive="screen">
                 <NGridItem v-for="template in templates" :key="template.id">
-                  <div class="template-card" :class="{
-                    'selected-template': selectedTemplate === template.id,
-                  }" @click="selectedTemplate = template.id">
+                  <div
+                    class="template-card"
+                    :class="{
+                      'selected-template': selectedTemplate === template.id,
+                    }"
+                    @click="selectedTemplate = template.id"
+                  >
                     <div class="template-image">
-                      <NImage :src="template.thumbnail" object-fit="cover" :preview-disabled="true"
-                        fallback-src="/placeholder-image.png" :alt="template.name" />
+                      <NImage
+                        :src="template.thumbnail"
+                        object-fit="cover"
+                        :preview-disabled="true"
+                        fallback-src="/placeholder-image.png"
+                        :alt="template.name"
+                      />
                       <div class="template-overlay">
-                        <div class="template-check" v-if="selectedTemplate === template.id">
+                        <div
+                          class="template-check"
+                          v-if="selectedTemplate === template.id"
+                        >
                           <NIcon size="24">
                             <CheckCircleFilled />
                           </NIcon>
@@ -205,8 +321,14 @@
                       <h3>{{ template.name }}</h3>
                       <!-- Add template tags -->
                       <div class="template-tags-container">
-                        <NTag v-for="(tag, index) in getTemplateTags(template)" :key="index" size="small"
-                          :color="{ color: getTagColor(tag) }" :bordered="false" class="template-tag">
+                        <NTag
+                          v-for="(tag, index) in getTemplateTags(template)"
+                          :key="index"
+                          size="small"
+                          :color="{ color: getTagColor(tag) }"
+                          :bordered="false"
+                          class="template-tag"
+                        >
                           {{ tag }}
                         </NTag>
                       </div>
@@ -222,9 +344,16 @@
 
       <template #footer>
         <div class="modal-footer">
-          <NButton @click="showCreateModal = false" class="cancel-button">取消</NButton>
-          <NButton type="primary" :disabled="!newProject.name" :loading="creatingProject" @click="createProject"
-            class="create-button">
+          <NButton @click="showCreateModal = false" class="cancel-button"
+            >取消</NButton
+          >
+          <NButton
+            type="primary"
+            :disabled="!newProject.name"
+            :loading="creatingProject"
+            @click="createProject"
+            class="create-button"
+          >
             創建專案
           </NButton>
         </div>
@@ -260,8 +389,11 @@ import {
   NRadioGroup,
 } from "naive-ui";
 import {
-  PlusOutlined, SearchOutlined, CheckCircleFilled, DownOutlined,
-  UpOutlined
+  PlusOutlined,
+  SearchOutlined,
+  CheckCircleFilled,
+  DownOutlined,
+  UpOutlined,
 } from "@vicons/antd";
 import ProjectCard from "../components/project/ProjectCard.vue";
 import TagSelector from "../components/ui/TagSelector.vue";
@@ -284,12 +416,20 @@ const currentPage = ref(1);
 const pageSize = ref(12);
 
 const showAllTemplates = ref(false);
-const tagColors = ['#f50', '#2db7f5', '#87d068', '#108ee9', '#7265e6', '#00a2ae', '#ffbf00'];
+const tagColors = [
+  "#f50",
+  "#2db7f5",
+  "#87d068",
+  "#108ee9",
+  "#7265e6",
+  "#00a2ae",
+  "#ffbf00",
+];
 
 // Get a consistent color for a specific tag
 const getTagColor = (tag) => {
-  const hash = tag.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return tagColors[hash % tagColors.length] + '33'; // Adding 33 for transparency
+  const hash = tag.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return tagColors[hash % tagColors.length] + "33"; // Adding 33 for transparency
 };
 
 // Get template tags
@@ -331,6 +471,73 @@ const newProject = ref({
   description: "",
   tags: [],
 });
+
+const createProject = async () => {
+  if (!newProject.value.name) return;
+
+  creatingProject.value = true;
+  try {
+    // 準備表單數據
+    const formData = new FormData();
+    formData.append("name", newProject.value.name);
+
+    // 添加描述 (如果有)
+    if (newProject.value.description) {
+      formData.append("description", newProject.value.description);
+    }
+
+    // 添加標籤 (如果有)
+    if (newProject.value.tags && newProject.value.tags.length > 0) {
+      formData.append("tags", JSON.stringify(newProject.value.tags));
+    }
+
+    // 添加模板ID (如果有)
+    if (selectedTemplate.value) {
+      formData.append("templateId", selectedTemplate.value);
+    }
+
+    // 發送API請求
+    const response = await fetch("https://ec2.sausagee.party/project/create", {
+      method: "POST",
+      body: formData,
+      // credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error(`API返回錯誤狀態: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // 更新專案列表
+    await projectStore.fetchProjects();
+
+    // 顯示成功消息
+    message.success("專案創建成功");
+
+    // 重置表單
+    newProject.value = {
+      name: "",
+      description: "",
+      tags: [],
+    };
+    selectedTemplate.value = null;
+    showCreateModal.value = false;
+
+    // 導航到新建專案的設計頁面
+    if (data.id) {
+      router.push({
+        name: "design-input",
+        params: { projectId: data.id },
+      });
+    }
+  } catch (error) {
+    console.error("創建專案失敗:", error);
+    message.error("創建專案失敗，請稍後再試");
+  } finally {
+    creatingProject.value = false;
+  }
+};
 
 // 計算所有可用的標籤
 const availableTags = computed(() => {
@@ -441,44 +648,43 @@ const onPageSizeChange = (size) => {
   currentPage.value = 1; // 重置到第一頁
 };
 
-
 // 創建專案
-const createProject = async () => {
-  if (!newProject.value.name) return;
+// const createProject = async () => {
+//   if (!newProject.value.name) return;
 
-  creatingProject.value = true;
-  try {
-    const createdProject = await projectStore.createProject({
-      ...newProject.value,
-      templateId: selectedTemplate.value,
-    });
+//   creatingProject.value = true;
+//   try {
+//     const createdProject = await projectStore.createProject({
+//       ...newProject.value,
+//       templateId: selectedTemplate.value,
+//     });
 
-    // 顯示成功消息
-    message.success("專案創建成功");
+//     // 顯示成功消息
+//     message.success("專案創建成功");
 
-    // 重置表單
-    newProject.value = {
-      name: "",
-      description: "",
-      tags: [],
-    };
-    selectedTemplate.value = null;
-    showCreateModal.value = false;
+//     // 重置表單
+//     newProject.value = {
+//       name: "",
+//       description: "",
+//       tags: [],
+//     };
+//     selectedTemplate.value = null;
+//     showCreateModal.value = false;
 
-    // 導航到新建專案的設計頁面
-    if (createdProject.id) {
-      router.push({
-        name: "design-input",
-        params: { projectId: createdProject.id },
-      });
-    }
-  } catch (error) {
-    console.error("創建專案失敗:", error);
-    message.error("創建專案失敗，請稍後再試");
-  } finally {
-    creatingProject.value = false;
-  }
-};
+//     // 導航到新建專案的設計頁面
+//     if (createdProject.id) {
+//       router.push({
+//         name: "design-input",
+//         params: { projectId: createdProject.id },
+//       });
+//     }
+//   } catch (error) {
+//     console.error("創建專案失敗:", error);
+//     message.error("創建專案失敗，請稍後再試");
+//   } finally {
+//     creatingProject.value = false;
+//   }
+// };
 </script>
 
 <style scoped>

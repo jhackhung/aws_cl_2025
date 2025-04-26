@@ -3,12 +3,12 @@
     <NLayoutHeader class="page-header">
       <div class="header-content">
         <div class="header-left">
-          <h1>設計畫廊</h1>
+          <h1>專案管理</h1>
           <NTag type="error" size="medium" class="step-tag">
             <template #icon>
               <div class="step-icon">4</div>
             </template>
-            品牌設計資料庫
+            專案生成的歷程
           </NTag>
         </div>
         <div class="header-right">
@@ -30,9 +30,9 @@
           <div class="info-icon">🏆</div>
         </template>
         <template #header>
-          <div class="alert-header">第四步：品牌設計資料庫</div>
+          <div class="alert-header">第四步：專案管理歷程</div>
         </template>
-        在此階段，您可以瀏覽、組織和管理所有完成的設計。添加標籤、分類設計、創建模板，持續累積品牌設計知識，讓您的團隊可以更高效地進行未來專案。
+        在此階段，您可以瀏覽此專案生成的過往圖片歷程。添加標籤、分類設計、創建模板，讓您的團隊可以更高效地進行未來專案。
       </NAlert>
     </div>
   </div>
