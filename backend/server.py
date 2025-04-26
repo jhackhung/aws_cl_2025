@@ -1,4 +1,5 @@
 import json
+import traceback
 import random
 import boto3
 from fastapi import FastAPI, UploadFile, Form, HTTPException
@@ -40,6 +41,11 @@ app.add_middleware(
 )
 app.mount("/generated_images",
           StaticFiles(directory="generated_images"),
+          name="images")
+
+
+app.mount("/static",
+          StaticFiles(directory="static"),
           name="static")
 
 model_id = "amazon.nova-canvas-v1:0"
@@ -66,6 +72,9 @@ def run_image_generation_task(task_id, text, imgs, batch_count, height, width,
     except Exception as e:
         with image_tasks_lock:
             image_tasks[task_id]["status"] = "error"
+            
+            logger.error(str(e))
+            logger.error(traceback.format_exc())
             image_tasks[task_id]["error"] = str(e)
 
 
@@ -87,8 +96,10 @@ def run_image_inpainting_task(task_id, batch_count, text, imgs, mask_prompt,
     except Exception as e:
         with image_tasks_lock:
             image_tasks[task_id]["status"] = "error"
+            
+            logger.error(str(e))
+            logger.error(traceback.format_exc())
             image_tasks[task_id]["error"] = str(e)
-
 
 async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
                                cfg_scale, seed, similarityStrength):
@@ -97,9 +108,9 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
         # uploaded_image_bytes = [await img.read() for img in imgs]
         uploaded_image_bytes = []
         for img_id in imgs:
-            img_base64 = await get_image(img_id)
-            if img_base64['data']:
-                uploaded_image_bytes.append(img_base64['data'])
+            img_base64 = await getImageDataB64Async(img_id)
+            if img_base64:
+                uploaded_image_bytes.append(img_base64)
 
 
         # 可依第一張圖片大小補高度寬度
@@ -138,10 +149,10 @@ async def inpainting_image_logic(task_id, batch_count, text, imgs, mask_prompt,
         # uploaded_image_bytes = [await img.read() for img in imgs]
         uploaded_image_bytes = []
         for img_id in imgs:
-            img_base64 = await get_image(img_id)
+            img_base64 = await getImageDataB64Async(img_id)
             
-            if img_base64['data']:
-                uploaded_image_bytes.append(img_base64['data'])
+            if img_base64:
+                uploaded_image_bytes.append(img_base64)
 
         # 可依第一張圖片大小補高度寬度
         if not height or not width:
@@ -643,11 +654,8 @@ async def get_image_result(taskId: str):
         task_status = image_tasks.get(taskId)
         if not task_status:
             task_status = "error"
-    return {
-        # "status": task_status['status'],
-        'status': task_status,
-        "urls": task_result.get(taskId)
-    }  # Placeholder
+    task_status["urls"]=task_result.get(taskId)
+    return task_status
 
 
 @app.get("/img/{id}")
@@ -665,15 +673,8 @@ async def get_image(id: str):
             raise HTTPException(status_code=404, detail="Image not found")
         
         # Fetch image data from S3
-        s3_key = f"images/{id}"
-        try:
-            s3_response = s3_client.get_object(Bucket="scottish-leader", Key=s3_key)
-            image_data = s3_response['Body'].read()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to fetch image from S3: {str(e)}")
-        
         # Encode image to base64
-        image_base64 = base64.b64encode(image_data).decode('utf-8')
+        image_base64 = await getImageDataB64Async(id)
         
         # Prepare response
         response = {
@@ -694,7 +695,18 @@ async def get_image(id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
-
+async def getImageDataB64Async(id: str):
+    # Fetch image data from S3
+    s3_key = f"images/{id}"
+    try:
+        s3_response = s3_client.get_object(Bucket="scottish-leader", Key=s3_key)
+        image_data = s3_response['Body'].read()
+        
+        image_base64 = base64.b64encode(image_data).decode('utf-8')
+        return image_base64
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch image {s3_key} from S3: {str(e)}")
+        
 # Create MySQL connection
 conn = mysql.connector.connect(
     host=DATABASE_ENDPOINT,

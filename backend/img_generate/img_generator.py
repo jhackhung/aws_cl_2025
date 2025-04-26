@@ -71,7 +71,7 @@ def generate_images(model_id, task_id, prompt, batch_count=1, height=1024, width
     return image_list
 
 
-def process_images(model_id, task_id, prompt, negative_prompt, base64_images, batch_count=1, height=1024, width=1024,  cfg_scale=8.0, seed=0, similarityStrength=0.7):
+def process_images(model_id, task_id, prompt, base64_images, negative_prompt=None,  batch_count=1, height=1024, width=1024,  cfg_scale=8.0, seed=0, similarityStrength=0.7):
     """
     Process input images and optionally combine with a text prompt for image generation.
     """
@@ -81,16 +81,20 @@ def process_images(model_id, task_id, prompt, negative_prompt, base64_images, ba
     bedrock = boto3.client(
         service_name='bedrock-runtime',
         config=Config(read_timeout=300)
+        ,region_name='us-east-1'
     )
+
+    params = {
+        "text": prompt,
+        "images": base64_images,
+        "similarityStrength": similarityStrength,  # Range: 0.2 to 1.0
+    }
+    if negative_prompt is not None:
+        params["negativeText"] = negative_prompt
 
     body = json.dumps({
         "taskType": "IMAGE_VARIATION",
-        "imageVariationParams": {
-            "text": prompt,
-            "negativeText": negative_prompt,
-            "images": base64_images,
-            "similarityStrength": similarityStrength,  # Range: 0.2 to 1.0
-        },
+        "imageVariationParams": params,
         "imageGenerationConfig": {
             "numberOfImages": batch_count,
             "height": height,
