@@ -12,7 +12,62 @@
       <div class="generation-info">
         <div class="prompt-display">
           <h3>提示詞</h3>
-          <p>{{ prompt }}</p>
+          <div class="prompt-input-container">
+            <NInput
+              v-model:value="editablePrompt"
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+              placeholder="輸入您的設計提示詞"
+              @blur="updatePrompt"
+              class="prompt-textarea"
+            />
+            <NButton
+              class="optimize-button"
+              type="primary"
+              @click="optimizePrompt"
+              title="優化提示詞"
+            >
+              <template #icon>
+                <!-- <NIcon><MagicOutlined /></NIcon> -->
+              </template>
+              ★
+            </NButton>
+            <NButton
+              class="generate-button"
+              type="primary"
+              @click="regenerateImages"
+              title="生成圖片"
+            >
+              Generate
+            </NButton>
+          </div>
+          <div
+            class="selected-images-container"
+            v-if="selectedImageIds.length > 0"
+          >
+            <div class="selected-count" @click="toggleSelectedImagesDropdown">
+              你選擇了 {{ selectedImageIds.length }} 張圖片
+              <NIcon class="dropdown-icon">{{
+                showSelectedImagesDropdown ? "▲" : "▼"
+              }}</NIcon>
+            </div>
+            <div
+              class="selected-images-dropdown"
+              v-if="showSelectedImagesDropdown"
+            >
+              <div
+                v-for="id in selectedImageIds"
+                :key="id"
+                class="selected-image-item"
+                @click="scrollToImage(id)"
+              >
+                圖片 ID: {{ id.substring(id.length - 6) }}
+              </div>
+            </div>
+          </div>
+          <div class="saved-count" v-if="savedImageIds.length > 0">
+            你儲存了 {{ savedImageIds.length }} 張圖片
+          </div>
           <NTag v-if="style" type="info">{{ style }}</NTag>
         </div>
         <NAlert title="提示" type="info" v-if="generatedImages.length">
@@ -25,54 +80,61 @@
         description="AI 正在生成您的設計，這可能需要一些時間..."
       >
         <div v-if="generatedImages.length" class="images-section">
-          <!-- 將圖片生成時間顯示為標題 -->
-          <div class="generation-batch-title">
-            <h4>生成於 {{ new Date().toLocaleString() }}</h4>
-          </div>
-          <!-- 水平滑動容器 -->
-          <div class="horizontal-scroll-container">
-            <div class="images-row">
-              <div
-                v-for="(image, index) in generatedImages.slice(0, 4)"
-                :key="index"
-                :class="[
-                  'image-card',
-                  { selected: selectedImages.includes(index) },
-                ]"
-                @click="toggleImageSelection(index)"
-                class="image-card-container"
-              >
-                <NImage
-                  :src="image"
-                  object-fit="cover"
-                  :alt="'生成圖像 ' + (index + 1)"
-                  class="generated-image"
-                  preview-disabled
-                />
-                <div class="image-overlay">
-                  <div class="selection-indicator">
-                    <NIcon
-                      size="24"
-                      class="check-icon"
-                      v-if="selectedImages.includes(index)"
-                      >✓</NIcon
+          <!-- 將生成的圖片按批次分組顯示 -->
+          <div
+            v-for="(batch, batchIndex) in imageBatches"
+            :key="batchIndex"
+            class="image-batch"
+          >
+            <!-- 批次標題和時間戳 -->
+            <div class="generation-batch-title">
+              <h4>生成於 {{ formatTimestamp(batch[0]?.createdAt) }}</h4>
+            </div>
+            <!-- 水平滑動容器 -->
+            <div class="horizontal-scroll-container">
+              <div class="images-row">
+                <div
+                  v-for="image in batch"
+                  :key="image.id"
+                  :class="[
+                    'image-card',
+                    { selected: selectedImageIds.includes(image.id) },
+                    { highlighted: highlightedImageId === image.id },
+                  ]"
+                  @click="toggleImageSelection(image.id)"
+                  class="image-card-container"
+                  :data-image-id="image.id"
+                >
+                  <NImage
+                    :src="image.url"
+                    object-fit="cover"
+                    :alt="'生成圖像'"
+                    class="generated-image"
+                    preview-disabled
+                  />
+                  <div class="image-overlay">
+                    <div
+                      class="selection-indicator"
+                      v-if="selectedImageIds.includes(image.id)"
                     >
-                  </div>
-                  <div class="image-actions">
-                    <NButton
-                      circle
-                      quaternary
-                      @click.stop="previewImage(image)"
-                    >
-                      <template #icon>👁️</template>
-                    </NButton>
-                    <NButton
-                      circle
-                      quaternary
-                      @click.stop="downloadImage(image, index)"
-                    >
-                      <template #icon>↓</template>
-                    </NButton>
+                      <NIcon size="24" class="check-icon">✓</NIcon>
+                    </div>
+                    <div class="image-actions">
+                      <NButton
+                        circle
+                        quaternary
+                        @click.stop="previewImage(image.url)"
+                      >
+                        <template #icon>👁️</template>
+                      </NButton>
+                      <NButton
+                        circle
+                        quaternary
+                        @click.stop="downloadImage(image.url, image.id)"
+                      >
+                        <template #icon>↓</template>
+                      </NButton>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -126,7 +188,9 @@ import {
   NAlert,
   NEmpty,
   NIcon,
+  NInput,
 } from "naive-ui";
+import { BulbOutlined } from "@vicons/antd";
 import AiGeneratePageHeader from "../components/headers/AiGeneratePageHeader.vue";
 
 const route = useRoute();
@@ -140,6 +204,11 @@ const projectId = computed(() => route.params.projectId);
 const showPreviewModal = ref(false);
 const previewImageUrl = ref("");
 const selectedImages = ref([]);
+const editablePrompt = ref("");
+
+const updatePrompt = () => {
+  imageStore.updateGenerationParams({ prompt: editablePrompt.value });
+};
 
 // 獲取生成參數
 const generationParams = computed(() => imageStore.generationParams);
@@ -163,9 +232,94 @@ const style = computed(() => {
 });
 
 // 獲取生成的圖像
-const generatedImages = computed(() =>
-  imageStore.generatedImages.map((img) => img.url)
-);
+const generatedImages = computed(() => imageStore.generatedImages);
+
+// 按批次分組顯示圖像 - 根據創建時間的間隔分組
+const imageBatches = computed(() => {
+  if (!generatedImages.value.length) return [];
+
+  // 創建批次數組
+  const batches = [];
+  let currentBatch = [];
+  let lastTimestamp = null;
+
+  // 對生成的圖像進行排序和分組
+  generatedImages.value.forEach((image, index) => {
+    const imageTimestamp = new Date(image.createdAt).getTime();
+
+    // 如果是第一張圖片或時間接近上一張(同一批次)
+    if (index === 0 || Math.abs(imageTimestamp - lastTimestamp) < 2000) {
+      currentBatch.push(image);
+    } else {
+      // 開始新的批次
+      batches.push([...currentBatch]);
+      currentBatch = [image];
+    }
+
+    lastTimestamp = imageTimestamp;
+  });
+
+  // 添加最後一批
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
+  }
+
+  return batches;
+});
+
+// 格式化時間戳
+const formatTimestamp = (timestamp) => {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+};
+
+// 選中圖片ID數組
+const selectedImageIds = ref([]);
+const savedImageIds = ref([]);
+
+// 監視選中的圖片ID更新選中圖片數組
+selectedImages.value = computed(() => {
+  return selectedImageIds.value
+    .map((id) => {
+      const index = generatedImages.value.findIndex((img) => img.id === id);
+      return index !== -1 ? index : null;
+    })
+    .filter((index) => index !== null);
+});
+
+// 選中圖片下拉列表控制
+const showSelectedImagesDropdown = ref(false);
+const highlightedImageId = ref(null);
+
+// 切換選中圖片下拉列表顯示狀態
+const toggleSelectedImagesDropdown = () => {
+  showSelectedImagesDropdown.value = !showSelectedImagesDropdown.value;
+};
+
+// 滾動到指定圖片並高亮顯示
+const scrollToImage = (imageId) => {
+  // 關閉下拉列表
+  showSelectedImagesDropdown.value = false;
+
+  // 設置高亮圖片ID
+  highlightedImageId.value = imageId;
+
+  // 延遲一下再滾動，確保DOM已更新
+  setTimeout(() => {
+    // 查找對應的圖片元素
+    const imageElement = document.querySelector(`[data-image-id="${imageId}"]`);
+    if (imageElement) {
+      // 滾動到圖片位置
+      imageElement.scrollIntoView({ behavior: "smooth", block: "center" });
+
+      // 3秒後移除高亮效果
+      setTimeout(() => {
+        highlightedImageId.value = null;
+      }, 3000);
+    }
+  }, 100);
+};
 
 // 初始載入數據
 onMounted(() => {
@@ -176,17 +330,20 @@ onMounted(() => {
       .finally(() => (loading.value = false));
   }
 
+  // 初始化可編輯提示詞
+  editablePrompt.value = prompt.value;
+
   if (generatedImages.value.length === 0 && !imageStore.loading) {
     regenerateImages();
   }
 });
 
 // 切換圖像選擇狀態
-const toggleImageSelection = (index) => {
-  if (selectedImages.value.includes(index)) {
-    selectedImages.value = selectedImages.value.filter((i) => i !== index);
+const toggleImageSelection = (id) => {
+  if (selectedImageIds.value.includes(id)) {
+    selectedImageIds.value = selectedImageIds.value.filter((i) => i !== id);
   } else {
-    selectedImages.value.push(index);
+    selectedImageIds.value.push(id);
   }
 };
 
@@ -197,10 +354,10 @@ const previewImage = (image) => {
 };
 
 // 下載圖像
-const downloadImage = (imageUrl, index) => {
+const downloadImage = (imageUrl, id) => {
   const a = document.createElement("a");
   a.href = imageUrl;
-  a.download = `generated-image-${index + 1}.png`;
+  a.download = `generated-image-${id}.png`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -251,6 +408,33 @@ const saveAndContinue = () => {
       imageId: selectedImage.id,
     },
   });
+};
+
+// 優化提示詞
+const optimizePrompt = async () => {
+  if (!editablePrompt.value.trim()) {
+    return;
+  }
+
+  try {
+    loading.value = true;
+
+    // 模擬API調用延遲
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // 簡單的優化邏輯示例
+    const optimizedPrompt = `${editablePrompt.value.trim()} + 高質量、專業設計、細節豐富、協調的配色方案、均衡的構圖`;
+
+    // 更新提示詞
+    editablePrompt.value = optimizedPrompt;
+    updatePrompt();
+
+    // 在實際應用中，這裡可以調用後端API進行AI優化
+  } catch (error) {
+    console.error("優化提示詞失敗:", error);
+  } finally {
+    loading.value = false;
+  }
 };
 </script>
 
@@ -379,6 +563,113 @@ const saveAndContinue = () => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.prompt-input-container {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.prompt-textarea {
+  flex-grow: 1;
+  text-align: left;
+}
+
+.optimize-button {
+  height: auto;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  white-space: nowrap;
+}
+
+.generate-button {
+  height: auto;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  white-space: nowrap;
+  background-color: #18a058; /* Green color */
+  color: white; /* Ensuring text is white for contrast */
+  border-color: #18a058;
+}
+
+.generate-button:hover {
+  background-color: #36ad6a; /* Slightly lighter green for hover state */
+  border-color: #36ad6a;
+}
+
+.selected-count {
+  margin-top: 8px;
+  font-size: 0.9em;
+  color: #2080f0;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+.dropdown-icon {
+  margin-left: 8px;
+  font-size: 0.8em;
+}
+
+.selected-images-container {
+  position: relative;
+}
+
+.selected-images-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  max-width: 240px;
+  background-color: white;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.selected-image-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.selected-image-item:hover {
+  background-color: #f5f5f5;
+  color: #2080f0;
+}
+
+.image-card-container.highlighted {
+  border: 3px solid #ff4d4f;
+  animation: glow 1.5s ease-in-out infinite alternate;
+  box-shadow: 0 0 20px rgba(255, 77, 79, 0.7);
+  z-index: 2;
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 5px rgba(255, 77, 79, 0.7);
+  }
+  to {
+    box-shadow: 0 0 20px rgba(255, 77, 79, 0.9), 0 0 30px rgba(255, 77, 79, 0.5);
+  }
+}
+
+.saved-count {
+  margin-top: 4px;
+  font-size: 0.9em;
+  color: #18a058; /* Green color to match the Generate button */
+  font-weight: 500;
+  text-align: left;
 }
 
 @media (max-width: 768px) {
