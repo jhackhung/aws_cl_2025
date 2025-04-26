@@ -173,6 +173,9 @@ import { useRouter } from "vue-router";
 import { NButton, NIcon } from "naive-ui";
 import gsap from "gsap";
 
+
+const { t } = useTranslation();
+
 // Icons
 const ArrowRightIcon = () =>
   h(
@@ -401,28 +404,24 @@ const features = [
 ];
 
 // Design Process steps
-const designSteps = [
+const designSteps = computed(() => [
   {
-    title: "輸入設計參數與參考資料",
-    description:
-      "從設定顏色、材質和尺寸等設計參數開始，或使用我們的網路爬蟲系統來尋找市場趨勢和靈感。",
+    title: t('designInputTitle'),
+    description: t('designInputDescription'),
   },
   {
-    title: "生成 AI 設計概念",
-    description:
-      "我們的平台利用多種 AI 模型，包括 Stability AI、Titan ImageGenerator G1 v2 和 Nova Canvas，來生成多樣化的設計選項。",
+    title: t('aiGenerateTitle'),
+    description: t('aiGenerateDescription'),
   },
   {
-    title: "客製化與優化您的設計",
-    description:
-      "使用我們的局部重繪 (inpainting) 技術和圖像處理工具來修改特定元素，同時保留核心設計要素。",
+    title: t('designerRevisionTitle'),
+    description: t('designerRevisionDescription'),
   },
   {
-    title: "儲存與管理您的專案",
-    description:
-      "為您的設計添加標籤並分類，將它們另存為模板，並能依風格或特性篩選瀏覽您的設計歷史紀錄。",
-  },
-];
+    title: t('integrationTitle'),
+    description: t('integrationDescription'),
+  }
+]);
 const galleryItems = ref([
   {
     image: new URL("../assets/homepage_img/1.png", import.meta.url).href,

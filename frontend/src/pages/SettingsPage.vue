@@ -89,6 +89,10 @@ const languageOptions = [
     label: "English",
     value: "en-US",
   },
+  {
+    label: "한국어",
+    value: "ko-KR",
+  }
 ];
 
 // 處理語言選擇
