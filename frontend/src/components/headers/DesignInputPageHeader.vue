@@ -75,7 +75,7 @@ const startGeneration = () => {
 <style scoped>
 .page-header-wrapper {
   margin-bottom: 24px;
-  width: 100%;
+  width: 97%;
   position: relative;
   z-index: 100;
 }
@@ -142,7 +142,7 @@ const startGeneration = () => {
 .workflow-desc {
   margin-top: 16px;
   padding: 0 40px;
-  width: 100%;
+  width: 94%;
   position: relative;
   z-index: 50;
 }

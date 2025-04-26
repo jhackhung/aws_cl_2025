@@ -1,3 +1,5 @@
+import json
+import boto3
 from fastapi import FastAPI, UploadFile, Form
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict
@@ -16,6 +18,7 @@ DATABASE_USERNAME = os.getenv('DATABASE_USERNAME')
 DATABASE_ENDPOINT = os.getenv('DATABASE_ENDPOINT')
 
 from img_generate.img_generator import generate_images, save_images, get_image_size, process_images
+from img_generate.img_inpainting import inpaint_images
 import uuid
 import threading
 import asyncio
@@ -25,24 +28,47 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
-app.mount("/generated_images", StaticFiles(directory="generated_images"), name="static")
+app.mount("/generated_images",
+          StaticFiles(directory="generated_images"),
+          name="static")
 
 model_id = "amazon.nova-canvas-v1:0"
 
 image_tasks = {}
 image_tasks_lock = threading.Lock()
 
-task_result=dict()
+task_result = dict()
 
 
 def run_image_generation_task(task_id, text, imgs, batch_count, height, width,
-                              cfg_scale, seed):
+                              cfg_scale, seed, similarityStrength):
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         result = loop.run_until_complete(
             generate_image_logic(task_id, text, imgs, batch_count, height,
-                                 width, cfg_scale, seed))
+                                 width, cfg_scale, seed, similarityStrength))
+        loop.close()
+
+        with image_tasks_lock:
+            image_tasks[task_id]["status"] = "done"
+            image_tasks[task_id]["result"] = result
+    except Exception as e:
+        with image_tasks_lock:
+            image_tasks[task_id]["status"] = "error"
+            image_tasks[task_id]["error"] = str(e)
+
+
+def run_image_inpainting_task(task_id, batch_count, text, imgs, mask_prompt,
+                              mask_image, negative_prompt, height, width,
+                              cfg_scale, seed):
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(
+            inpainting_image_logic(task_id, batch_count, text, imgs,
+                                   mask_prompt, mask_image, negative_prompt,
+                                   height, width, cfg_scale, seed))
         loop.close()
 
         with image_tasks_lock:
@@ -55,7 +81,7 @@ def run_image_generation_task(task_id, text, imgs, batch_count, height, width,
 
 
 async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
-                               cfg_scale, seed):
+                               cfg_scale, seed, similarityStrength):
 
     if imgs:
         uploaded_image_bytes = [await img.read() for img in imgs]
@@ -66,29 +92,47 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
             height = height or first_image_size["height"]
             width = width or first_image_size["width"]
 
-        img_list = await process_images(
-            model_id=model_id,
-            task_id=task_id,
-            prompt=text,
-            image_bytes_list=uploaded_image_bytes,
-            batch_count=batch_count,
-            height=height,
-            width=width,
-            cfg_scale=cfg_scale,
-            seed=seed)
-        task_result = save_images(img_list)
-        
-
+        img_list = process_images(model_id=model_id,
+                                  task_id=task_id,
+                                  prompt=text,
+                                  image_bytes_list=uploaded_image_bytes,
+                                  batch_count=batch_count,
+                                  height=height,
+                                  width=width,
+                                  cfg_scale=cfg_scale,
+                                  seed=seed,
+                                  similarityStrength=similarityStrength)
     else:
-        img_list = await generate_images(model_id=model_id,
-                                            task_id=task_id,
-                                            prompt=text,
-                                            batch_count=batch_count,
-                                            height=height,
-                                            width=width,
-                                            cfg_scale=cfg_scale,
-                                            seed=seed)
-        task_result = save_images(img_list)
+        img_list = generate_images(model_id=model_id,
+                                   task_id=task_id,
+                                   prompt=text,
+                                   batch_count=batch_count,
+                                   height=height,
+                                   width=width,
+                                   cfg_scale=cfg_scale,
+                                   seed=seed)
+    saved_paths = save_images(task_id, img_list)
+    task_result[task_id] = saved_paths
+
+
+def inpainting_image_logic(task_id, batch_count, text, imgs, mask_prompt,
+                           mask_image, negative_prompt, height, width,
+                           cfg_scale, seed):
+    img_list = inpaint_images(model_id=model_id,
+                                 task_id=task_id,
+                                 prompt=text,
+                                 mask_prompt=mask_prompt,
+                                 mask_image=mask_image,
+                                 negative_prompt=negative_prompt,
+                                 image_bytes_list=imgs,
+                                 batch_count=batch_count,
+                                 height=height,
+                                 width=width,
+                                 cfg_scale=cfg_scale,
+                                 seed=seed)
+    saved_paths = save_images(task_id, img_list)
+    task_result[task_id] = saved_paths
+
 
 @app.get("/")
 async def root():
@@ -102,6 +146,7 @@ async def generate_image(
         imgs: Optional[List[str]] = Form(None),
         cfg_scale: float = Form(...),
         seed: Optional[str] = Form(None),
+        similarityStrength: Optional[float] = Form(None),
         parameters: Optional[Dict] = Form(None),
 ):
     seed = seed or 0
@@ -119,14 +164,47 @@ async def generate_image(
     # 啟動線程執行圖片生成任務
     threading.Thread(target=run_image_generation_task,
                      args=(task_id, text, imgs, batch_count, height, width,
-                           cfg_scale, seed),
+                           cfg_scale, seed, similarityStrength),
                      daemon=True).start()
 
     return {"id": task_id}
 
 
+@app.post("/img/inpainting")
+async def inpainting_image(
+        batch_count: int = Form(...),
+        text: str = Form(...),
+        imgs: Optional[List[str]] = Form(None),
+        mask_prompt: Optional[str] = Form(None),
+        mask_image: Optional[UploadFile] = Form(None),
+        negative_prompt: str = Form(...),
+        cfg_scale: float = Form(...),
+        seed: Optional[str] = Form(None),
+        parameters: Optional[Dict] = Form(None),
+):
+    seed = seed or 0
+
+    height = parameters.get("height") if parameters else 1024
+    width = parameters.get("width") if parameters else 1024
+
+    task_id = str(uuid.uuid4())
+
+    task = {"id": task_id, "status": "queued", "result": None, "error": None}
+    logger.info(f"Received image inpainting task: {task_id}, {task}")
+    with image_tasks_lock:
+        image_tasks[task_id] = task
+
+    threading.Thread(target=run_image_inpainting_task,
+                     args=(task_id, batch_count, text, imgs, mask_prompt,
+                           mask_image, negative_prompt, height, width,
+                           cfg_scale, seed),
+                     daemon=True).start()
+    return {"id": task_id}
+
+
 @app.post("/project/create")
-async def create_project(name: str = Form(...), templateId: Optional[str] = Form(None)):
+async def create_project(name: str = Form(...),
+                         templateId: Optional[str] = Form(None)):
     try:
         cursor = conn.cursor()
 
@@ -140,7 +218,7 @@ async def create_project(name: str = Form(...), templateId: Optional[str] = Form
         VALUES (%s, %s, %s, %s, %s)
         """
         values = (project_id, name, templateId, current_time, current_time)
-        
+
         cursor.execute(insert_query, values)
         conn.commit()
 
@@ -153,12 +231,12 @@ async def create_project(name: str = Form(...), templateId: Optional[str] = Form
     except Exception as e:
         return {"error": f"Server error: {str(e)}"}, 500
 
-        
 
 @app.post("/project/save")
-async def save_project(
-    id: str = Form(...), name: str = Form(...), tags: List[str] = Form(...), images: List[str] = Form(...)
-):
+async def save_project(id: str = Form(...),
+                       name: str = Form(...),
+                       tags: List[str] = Form(...),
+                       images: List[str] = Form(...)):
     try:
         cursor = conn.cursor()
         current_time = datetime.now()
@@ -173,7 +251,7 @@ async def save_project(
 
         # Delete existing tags for the project
         delete_tags_query = "DELETE FROM project_tags WHERE project_id = %s"
-        cursor.execute(delete_tags_query, (id,))
+        cursor.execute(delete_tags_query, (id, ))
 
         # Insert new tags
         if tags:
@@ -186,7 +264,7 @@ async def save_project(
 
         # Delete existing image associations
         delete_images_query = "DELETE FROM project_images WHERE project_id = %s"
-        cursor.execute(delete_images_query, (id,))
+        cursor.execute(delete_images_query, (id, ))
 
         # Insert new image associations
         if images:
@@ -213,15 +291,64 @@ async def save_project(
 @app.post("/img/save")
 async def save_image(
         projectId: str = Form(...),
-        data: str = Form(...),  # Assuming base64 string
-        type: str = Form(...),  # Mime-type
+        file: UploadFile = Form(...),
         id: Optional[str] = Form(None),
         seed: Optional[str] = Form(None),
         prompt: Optional[str] = Form(None),
         parameters: Optional[Dict] = Form(None),
 ):
-    # TODO: Implement image saving logic
-    return {"id": "image_id"}  # Placeholder
+    try:
+        cursor = conn.cursor()
+        
+        # Generate image ID if not provided
+        image_id = id or str(uuid.uuid4())
+        
+        # Convert parameters to JSON if provided
+        parameters_json = json.dumps(parameters) if parameters else None
+        
+        # Read image data
+        image_data = await file.read()
+        # Log image details
+        logger.info(f"Saving image {image_id} for project {projectId}. File type: {file.content_type}, Size: {len(image_data)} bytes")
+        # Upload to S3
+        try:
+            s3_key = f"images/{image_id}"
+            s3_client.put_object(
+                Bucket="scottish-leader",
+                Key=s3_key,
+                Body=image_data,
+                ContentType=file.content_type
+            )
+        except Exception as e:
+            logger.error(f"S3 upload failed: {str(e)}")
+            return {"error": f"Failed to upload image: {str(e)}"}, 500
+        
+        # Insert image metadata into database
+        insert_query = """
+        INSERT INTO images (id, project_id, type, seed, prompt, parameters)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            type = VALUES(type),
+            seed = VALUES(seed),
+            prompt = VALUES(prompt),
+            parameters = VALUES(parameters)
+        """
+        values = (image_id, projectId, file.content_type, seed, prompt, parameters_json)
+        
+        cursor.execute(insert_query, values)
+        conn.commit()
+        cursor.close()
+        
+        return {
+            "id": image_id,
+        }
+
+    except mysql.connector.Error as err:
+        conn.rollback()
+        return {"error": f"Database error: {str(err)}"}, 500
+    except Exception as e:
+        conn.rollback()
+        return {"error": f"Server error: {str(e)}"}, 500
 
 
 @app.post("/template/create")
@@ -297,6 +424,7 @@ async def get_image(id: str):
         },
     }  # Placeholder
 
+
 # Create MySQL connection
 conn = mysql.connector.connect(
     host=DATABASE_ENDPOINT,
@@ -304,3 +432,6 @@ conn = mysql.connector.connect(
     password=DATABASE_PASSWORD,
      database="backend"
 )
+
+
+s3_client = boto3.client("s3")

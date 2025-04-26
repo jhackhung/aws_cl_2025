@@ -1,10 +1,3 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2.0
-"""
-Shows how to use inpainting to generate an image from a source image with 
-the Amazon Nova models.
-Supports both mask prompt (text) and mask image approaches.
-"""
 import base64
 import io
 import json
@@ -28,18 +21,18 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def inpaint_image(
-    model_id, 
-    prompt, 
-    input_image_path, 
-    mask_prompt=None, 
-    mask_image_path=None, 
-    negative_prompt="",
-    height=None, 
-    width=None, 
-    cfg_scale=8.0,
-    region_name="us-east-1"
-):
+def inpaint_image(model_id,
+                  task_id,
+                  prompt,
+                  mask_prompt=None,
+                  mask_image=None,
+                  negative_prompt=None,
+                  image_bytes_list=None,
+                  batch_count=1,
+                  height=None,
+                  width=None,
+                  cfg_scale=8.0,
+                  seed=0):
     """
     Generate an inpainted image using Amazon Nova model.
     
@@ -61,38 +54,39 @@ def inpaint_image(
     logger.info(f"Generating inpainted image with model {model_id}")
 
     # Read and encode the input image
-    with open(input_image_path, "rb") as image_file:
-        input_image = base64.b64encode(image_file.read()).decode('utf8')
-    
-    # Get image dimensions if not specified
-    if height is None or width is None:
-        with Image.open(input_image_path) as img:
-            if height is None:
-                height = img.height
-            if width is None:
-                width = img.width
 
+    # Get image dimensions if not specified
+
+    if image_bytes_list:
+        image = Image.open(io.BytesIO(image_bytes_list[0]))
+        width, height = image.size
+    else:
+        raise ValueError(
+            "Either height/width or input_image_path must be provided.")
+
+    base64_images = [
+        base64.b64encode(image).decode('ascii') for image in image_bytes_list
+    ]
     # Prepare inpainting parameters
     inpaint_params = {
         "text": prompt,
         "negativeText": negative_prompt,
-        "image": input_image
+        "image": base64_images
     }
-    
+
     # Add either mask prompt or mask image (mask image takes precedence)
-    if mask_image_path:
-        with open(mask_image_path, "rb") as mask_file:
-            mask_image = base64.b64encode(mask_file.read()).decode('utf8')
+    if mask_image:
         inpaint_params["maskImage"] = mask_image
     else:
-        raise ValueError("maskImage is required for inpainting with this model.")
-    
+        raise ValueError(
+            "maskImage is required for inpainting with this model.")
+
     # Create the full request body
     body = json.dumps({
         "taskType": "INPAINTING",
         "inPaintingParams": inpaint_params,
         "imageGenerationConfig": {
-            "numberOfImages": 1,
+            "numberOfImages": batch_count,
             "height": height,
             "width": width,
             "cfgScale": cfg_scale
@@ -103,16 +97,13 @@ def inpaint_image(
     bedrock = boto3.client(
         service_name='bedrock-runtime',
         config=Config(read_timeout=300),
-        region_name=region_name
     )
 
     # Call the model
-    response = bedrock.invoke_model(
-        body=body, 
-        modelId=model_id, 
-        accept="application/json", 
-        contentType="application/json"
-    )
+    response = bedrock.invoke_model(body=body,
+                                    modelId=model_id,
+                                    accept="application/json",
+                                    contentType="application/json")
     response_body = json.loads(response.get("body").read())
 
     # Check for errors
@@ -120,87 +111,14 @@ def inpaint_image(
     if finish_reason is not None:
         raise ImageError(f"Image generation error: {finish_reason}")
 
-    # Extract the generated image
-    base64_image = response_body.get("images")[0]
-    base64_bytes = base64_image.encode('ascii')
-    image_bytes = base64.b64decode(base64_bytes)
+    image_list = []
+    for base64_image in response_body.get("images", []):
+        base64_bytes = base64_image.encode('ascii')
+        image_bytes = base64.b64decode(base64_bytes)
+        image_list.append(image_bytes)
 
-    logger.info(f"Successfully generated inpainted image with model {model_id}")
-    return image_bytes
+    logger.info(
+        "Successfully inpainting %d images with Amazon Nova Canvas model %s",
+        len(image_list), model_id)
 
-
-def save_image(image_bytes, output_dir="generated_images"):
-    """
-    Save generated image to disk.
-    
-    Args:
-        image_bytes (bytes): Image bytes to save.
-        output_dir (str): Directory to save image to.
-        
-    Returns:
-        str: Saved image path.
-    """
-    os.makedirs(output_dir, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filepath = os.path.join(output_dir, f"inpainted_image_{timestamp}.png")
-    
-    image = Image.open(io.BytesIO(image_bytes))
-    image.save(filepath)
-    logger.info(f"Saved image to {filepath}")
-    
-    return filepath
-
-
-def main():
-    """
-    Entrypoint for inpainting example.
-    """
-    try:
-        # Configure these parameters as needed
-        model_id = 'amazon.nova-canvas-v1:0'  # Using Nova Pro
-        input_image_path = "./generated_images/image_20250426_115414_0.jpg"  # Change to your image path
-        
-        # Option 1: Using mask prompt (text description of what to change)
-        # result_bytes = inpaint_image(
-        #     model_id=model_id,
-        #     prompt="Replace the car with a futuristic hover vehicle",
-        #     input_image_path=input_image_path,
-        #     mask_prompt="car",  # This tells the model to focus on the car area
-        #     negative_prompt="low quality, blurry",
-        #     cfg_scale=8.0
-        # )
-        
-        # Option 2: Using explicit mask image (black and white image where white pixels will be modified)
-        mask_image_path = "./mask_image.png"  # Change to your mask image path
-        result_bytes = inpaint_image(
-            model_id=model_id,
-            prompt="Enhance the metallic quality of the computer case, with a sleek brushed aluminum texture, strong reflective surfaces, and a futuristic industrial design",
-            input_image_path=input_image_path,
-            mask_image_path=mask_image_path,
-            negative_prompt="low quality, blurry",
-            cfg_scale=8.0
-        )
-        
-        # Save and display the result
-        saved_path = save_image(result_bytes)
-        
-        # Display the image
-        image = Image.open(io.BytesIO(result_bytes))
-        image.show()
-        
-        print(f"Inpainting completed successfully! Image saved to: {saved_path}")
-        
-    except ClientError as err:
-        message = err.response["Error"]["Message"]
-        logger.error("A client error occurred: %s", message)
-        print(f"A client error occurred: {message}")
-    except ImageError as err:
-        logger.error(err.message)
-        print(err.message)
-    except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
-        print(f"An error occurred: {str(e)}")
-
-
-if __name__ == "__main__":
-    main()
+    return image_list
