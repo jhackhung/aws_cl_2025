@@ -28,7 +28,8 @@ def generate_images(model_id, task_id, prompt, batch_count=1, height=1024, width
 
     bedrock = boto3.client(
         service_name='bedrock-runtime',
-        config=Config(read_timeout=300)
+        config=Config(read_timeout=300),
+        region_name='us-east-1' 
     )
 
     body = json.dumps({
@@ -162,7 +163,7 @@ def save_images(task_id, image_bytes_list, output_dir="generated_images"):
         image = Image.open(io.BytesIO(image_bytes))
         filepath = os.path.join(output_dir, f"image_{timestamp}_{i}.jpg")
         image.save(filepath)
-        saved_paths.append(filepath.replace("\\", "/"))
+        saved_paths.append("/"+filepath.replace("\\", "/"))
         logger.info(f"Saved image to {filepath}")
     logger.info(f"Saved images with task ID {task_id} to {output_dir}")
     return saved_paths
