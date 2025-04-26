@@ -27,7 +27,7 @@ def inpaint_images(model_id,
                   mask_prompt=None,
                   mask_image=None,
                   negative_prompt=None,
-                  image_bytes_list=None,
+                  base64_images=None,
                   batch_count=1,
                   height=None,
                   width=None,
@@ -57,16 +57,13 @@ def inpaint_images(model_id,
 
     # Get image dimensions if not specified
 
-    if image_bytes_list:
-        image = Image.open(io.BytesIO(image_bytes_list[0]))
+    if base64_images:
+        image = Image.open(io.BytesIO(base64_images[0]))
         width, height = image.size
     else:
         raise ValueError(
             "Either height/width or input_image_path must be provided.")
 
-    base64_images = [
-        base64.b64encode(image).decode('ascii') for image in image_bytes_list
-    ]
     # Prepare inpainting parameters
     inpaint_params = {
         "text": prompt,

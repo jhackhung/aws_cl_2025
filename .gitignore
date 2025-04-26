@@ -3,3 +3,4 @@ venv/
 backend/.env
 backend/__pycache__/
 *.pyc
+generated_images/

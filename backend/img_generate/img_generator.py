@@ -71,20 +71,17 @@ def generate_images(model_id, task_id, prompt, batch_count=1, height=1024, width
     return image_list
 
 
-def process_images(model_id, task_id, prompt, negative_prompt, image_bytes_list, batch_count=1, height=1024, width=1024,  cfg_scale=8.0, seed=0, similarityStrength=0.7):
+def process_images(model_id, task_id, prompt, negative_prompt, base64_images, batch_count=1, height=1024, width=1024,  cfg_scale=8.0, seed=0, similarityStrength=0.7):
     """
     Process input images and optionally combine with a text prompt for image generation.
     """
     logger.info(
-        "Processing %d input images with Amazon Nova Canvas model %s", len(image_bytes_list), model_id)
+        "Processing %d input images with Amazon Nova Canvas model %s", len(base64_images), model_id)
 
     bedrock = boto3.client(
         service_name='bedrock-runtime',
         config=Config(read_timeout=300)
     )
-
-    # Convert images to base64
-    base64_images = [base64.b64encode(image).decode('ascii') for image in image_bytes_list]
 
     body = json.dumps({
         "taskType": "IMAGE_VARIATION",
@@ -127,15 +124,23 @@ def process_images(model_id, task_id, prompt, negative_prompt, image_bytes_list,
     return image_list
 
 
-def get_image_size(image_bytes):
+def get_image_size(image_data):
     """
     Get the width and height of an image.
     Args:
-        image_bytes (bytes): The image file in bytes.
+        image_data: Either raw bytes or base64 string of an image.
     Returns:
         dict: A dictionary containing 'width' and 'height'.
     """
     try:
+        # Handle both bytes and base64 string formats
+        if isinstance(image_data, str):
+            # Decode base64 string to bytes
+            image_bytes = base64.b64decode(image_data)
+        else:
+            # Already in bytes format
+            image_bytes = image_data
+            
         image = Image.open(io.BytesIO(image_bytes))
         width, height = image.size
         logger.info(f"Detected image size: width={width}, height={height}")
