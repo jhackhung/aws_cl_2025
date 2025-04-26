@@ -24,15 +24,23 @@
         :show="loading"
         description="AI 正在生成您的設計，這可能需要一些時間..."
       >
-        <div v-if="generatedImages.length" class="images-grid">
-          <NGrid cols="1 s:2 m:3 l:4 xl:5 2xl:6" x-gap="16" y-gap="16">
-            <NGridItem v-for="(image, index) in generatedImages" :key="index">
+        <div v-if="generatedImages.length" class="images-section">
+          <!-- 將圖片生成時間顯示為標題 -->
+          <div class="generation-batch-title">
+            <h4>生成於 {{ new Date().toLocaleString() }}</h4>
+          </div>
+          <!-- 水平滑動容器 -->
+          <div class="horizontal-scroll-container">
+            <div class="images-row">
               <div
+                v-for="(image, index) in generatedImages.slice(0, 4)"
+                :key="index"
                 :class="[
                   'image-card',
                   { selected: selectedImages.includes(index) },
                 ]"
                 @click="toggleImageSelection(index)"
+                class="image-card-container"
               >
                 <NImage
                   :src="image"
@@ -68,8 +76,8 @@
                   </div>
                 </div>
               </div>
-            </NGridItem>
-          </NGrid>
+            </div>
+          </div>
         </div>
         <NEmpty
           v-else-if="!loading"
@@ -322,83 +330,55 @@ const saveAndContinue = () => {
   word-break: break-word;
 }
 
-.images-grid {
+.images-section {
+  margin: 24px 0;
   width: 100%;
-  max-width: 100%;
 }
 
-.image-card {
-  position: relative;
-  border-radius: 8px;
-  overflow: hidden;
-  aspect-ratio: 1; /* 保持寬高比 */
-  max-height: 400px; /* 設定最大高度 */
+.generation-batch-title {
+  margin-bottom: 16px;
 }
 
-.images-grid-item {
+.horizontal-scroll-container {
   width: 100%;
-  box-sizing: border-box;
+  overflow-x: auto;
+  padding-bottom: 16px; /* Space for scrollbar */
 }
 
-.generated-image {
-  position: relative;
-  overflow: hidden;
-  cursor: pointer;
-  border-radius: 8px;
-  height: 100%;
-  width: 100%;
+.images-row {
   display: flex;
-  flex-direction: column;
-  object-fit: cover; /* 圖片適應容器 */
+  flex-direction: row;
+  gap: 16px;
+  min-width: min-content; /* Ensures the row doesn't wrap */
 }
 
-.image-container {
+.image-card-container {
+  flex: 0 0 auto;
+  width: 300px; /* Fixed width for each card */
+  height: 300px; /* Fixed height for consistent look */
   position: relative;
-  overflow: hidden;
   border-radius: 8px;
-  width: 100%;
-  padding-bottom: 100%; /* 維持 1:1 比例 */
+  overflow: hidden;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
 }
 
-.generated-image img {
+.image-card-container.selected {
+  border-color: #2080f0;
+  box-shadow: 0 0 0 2px rgba(32, 128, 240, 0.3);
+}
+
+.selection-indicator {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s ease;
-}
-
-.generated-image:hover img {
-  transform: scale(1.03);
-}
-
-.image-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  top: 8px;
+  left: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #2080f0;
   display: flex;
-  justify-content: center;
   align-items: center;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  border-radius: 8px;
-}
-
-.generated-image:hover .image-overlay {
-  opacity: 1;
-}
-
-.image-actions {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  display: flex;
-  gap: 8px;
+  justify-content: center;
 }
 
 @media (max-width: 768px) {
@@ -406,14 +386,13 @@ const saveAndContinue = () => {
     padding: 0 16px 16px 16px;
   }
 
-  .images-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  .images-row {
     gap: 12px;
   }
 
-  .prompt-display {
-    padding: 12px;
-    font-size: 14px;
+  .image-card-container {
+    width: 220px;
+    height: 220px;
   }
 }
 </style>
