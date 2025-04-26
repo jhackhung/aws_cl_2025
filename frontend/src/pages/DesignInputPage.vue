@@ -25,9 +25,19 @@
                   <NInput
                     v-model:value="form.prompt"
                     type="textarea"
+                    class="text-input-left"
                     placeholder="描述你想要的設計，例如：現代簡約風格的客廳，採用白色和木質元素..."
                     :autosize="{ minRows: 5, maxRows: 10 }"
                   />
+                  <NButton
+                    class="optimize-prompt-button"
+                    type="primary"
+                    @click="optimizePrompt"
+                    :disabled="!form.prompt.trim()"
+                    title="優化提示詞"
+                  >
+                    <template #icon>★</template>
+                  </NButton>
                 </NFormItem>
 
                 <NFormItem label="負面提示詞" path="negativePrompt">
@@ -36,6 +46,7 @@
                     type="textarea"
                     placeholder="描述你不想出現在生成結果中的元素，例如：模糊, 畸形, 低質量..."
                     :autosize="{ minRows: 3, maxRows: 5 }"
+                    class="text-input-left"
                   />
                 </NFormItem>
 
@@ -318,6 +329,35 @@ const rules = {
   },
 };
 
+// 優化提示詞
+const optimizePrompt = async () => {
+  if (!form.value.prompt.trim()) return;
+
+  try {
+    loading.value = true;
+
+    // 向後端發送優化請求
+    // 實際實現應該替換為您的API調用
+    const optimizedPrompt = await fetch("/api/optimize-prompt", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt: form.value.prompt }),
+    }).then((res) => res.json());
+
+    // 更新提示詞
+    if (optimizedPrompt && optimizedPrompt.result) {
+      form.value.prompt = optimizedPrompt.result;
+    }
+  } catch (error) {
+    console.error("優化提示詞失敗:", error);
+    // 這裡可以加入錯誤處理，例如使用通知組件顯示錯誤信息
+  } finally {
+    loading.value = false;
+  }
+};
+
 // 風格選項
 const styleOptions = [
   { label: "現代簡約", value: "modern_minimalist" },
@@ -491,10 +531,61 @@ const startGeneration = () => {
 </script>
 
 <style scoped>
+/* 現有的文本對齊樣式 */
+.text-input-left :deep(.n-input__textarea-el) {
+  text-align: left !important;
+  direction: ltr !important;
+}
+
+/* 使輸入框中的文字默認左對齊 */
+:deep(.n-input__textarea-el),
+:deep(.n-input__input-el) {
+  text-align: left !important;
+}
+
+/* 新增：讓 placeholder 文字也靠左對齊 */
+:deep(.n-input__textarea-el::placeholder),
+:deep(.n-input__input-el::placeholder) {
+  text-align: left !important;
+}
+
+/* 針對 Firefox 瀏覽器的特殊規則 */
+:deep(.n-input__textarea-el::-moz-placeholder),
+:deep(.n-input__input-el::-moz-placeholder) {
+  text-align: left !important;
+}
+
+/* 針對 Edge 的特殊規則 */
+:deep(.n-input__textarea-el::-ms-input-placeholder),
+:deep(.n-input__input-el::-ms-input-placeholder) {
+  text-align: left !important;
+}
+
 .design-input-page {
   min-height: 100vh;
   width: 100%;
   background-color: var(--bg-color, #f5f7fa);
+}
+
+.prompt-input-container {
+  position: relative;
+  width: 100%;
+}
+
+.optimize-prompt-button {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  bottom: 8px;
+  height: auto;
+  padding: 4px 12px;
+  font-size: 14px;
+  z-index: 2;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .page-content {
