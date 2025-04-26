@@ -70,7 +70,7 @@ def generate_images(model_id, task_id, prompt, batch_count=1, height=1024, width
     return image_list
 
 
-def process_images(model_id, task_id, prompt, image_bytes_list, batch_count=1, height=1024, width=1024, cfg_scale=8.0, seed=0):
+def process_images(model_id, task_id, prompt, negative_prompt, image_bytes_list, batch_count=1, height=1024, width=1024,  cfg_scale=8.0, seed=0, similarityStrength=0.7):
     """
     Process input images and optionally combine with a text prompt for image generation.
     """
@@ -86,17 +86,18 @@ def process_images(model_id, task_id, prompt, image_bytes_list, batch_count=1, h
     base64_images = [base64.b64encode(image).decode('ascii') for image in image_bytes_list]
 
     body = json.dumps({
-        "taskType": "IMAGE_TEXT_IMAGE" if prompt else "IMAGE_IMAGE",
-        "imageToImageParams": {
+        "taskType": "IMAGE_VARIATION",
+        "imageVariationParams": {
             "text": prompt,
-            "images": base64_images
+            "negativeText": negative_prompt,
+            "images": base64_images,
+            "similarityStrength": similarityStrength,  # Range: 0.2 to 1.0
         },
         "imageGenerationConfig": {
             "numberOfImages": batch_count,
             "height": height,
             "width": width,
             "cfgScale": cfg_scale,
-            "seed": seed
         }
     })
 
@@ -161,8 +162,8 @@ def save_images(task_id, image_bytes_list, output_dir="generated_images"):
         image = Image.open(io.BytesIO(image_bytes))
         filepath = os.path.join(output_dir, f"image_{timestamp}_{i}.jpg")
         image.save(filepath)
-        saved_paths.append(filepath)
+        saved_paths.append(filepath.replace("\\", "/"))
         logger.info(f"Saved image to {filepath}")
     logger.info(f"Saved images with task ID {task_id} to {output_dir}")
-    return {task_id: saved_paths}
+    return saved_paths
     

@@ -16,6 +16,7 @@ DATABASE_USERNAME = os.getenv('DATABASE_USERNAME')
 DATABASE_ENDPOINT = os.getenv('DATABASE_ENDPOINT')
 
 from img_generate.img_generator import generate_images, save_images, get_image_size, process_images
+from img_generate.img_inpainting import inpainting_images
 import uuid
 import threading
 import asyncio
@@ -25,24 +26,47 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
-app.mount("/generated_images", StaticFiles(directory="generated_images"), name="static")
+app.mount("/generated_images",
+          StaticFiles(directory="generated_images"),
+          name="static")
 
 model_id = "amazon.nova-canvas-v1:0"
 
 image_tasks = {}
 image_tasks_lock = threading.Lock()
 
-task_result=dict()
+task_result = dict()
 
 
 def run_image_generation_task(task_id, text, imgs, batch_count, height, width,
-                              cfg_scale, seed):
+                              cfg_scale, seed, similarityStrength):
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         result = loop.run_until_complete(
             generate_image_logic(task_id, text, imgs, batch_count, height,
-                                 width, cfg_scale, seed))
+                                 width, cfg_scale, seed, similarityStrength))
+        loop.close()
+
+        with image_tasks_lock:
+            image_tasks[task_id]["status"] = "done"
+            image_tasks[task_id]["result"] = result
+    except Exception as e:
+        with image_tasks_lock:
+            image_tasks[task_id]["status"] = "error"
+            image_tasks[task_id]["error"] = str(e)
+
+
+def run_image_inpainting_task(task_id, batch_count, text, imgs, mask_prompt,
+                              mask_image, negative_prompt, height, width,
+                              cfg_scale, seed):
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(
+            inpainting_image_logic(task_id, batch_count, text, imgs,
+                                   mask_prompt, mask_image, negative_prompt,
+                                   height, width, cfg_scale, seed))
         loop.close()
 
         with image_tasks_lock:
@@ -55,7 +79,7 @@ def run_image_generation_task(task_id, text, imgs, batch_count, height, width,
 
 
 async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
-                               cfg_scale, seed):
+                               cfg_scale, seed, similarityStrength):
 
     if imgs:
         uploaded_image_bytes = [await img.read() for img in imgs]
@@ -66,29 +90,47 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
             height = height or first_image_size["height"]
             width = width or first_image_size["width"]
 
-        img_list = await process_images(
-            model_id=model_id,
-            task_id=task_id,
-            prompt=text,
-            image_bytes_list=uploaded_image_bytes,
-            batch_count=batch_count,
-            height=height,
-            width=width,
-            cfg_scale=cfg_scale,
-            seed=seed)
-        task_result = save_images(img_list)
-        
-
+        img_list = process_images(model_id=model_id,
+                                  task_id=task_id,
+                                  prompt=text,
+                                  image_bytes_list=uploaded_image_bytes,
+                                  batch_count=batch_count,
+                                  height=height,
+                                  width=width,
+                                  cfg_scale=cfg_scale,
+                                  seed=seed,
+                                  similarityStrength=similarityStrength)
     else:
-        img_list = await generate_images(model_id=model_id,
-                                            task_id=task_id,
-                                            prompt=text,
-                                            batch_count=batch_count,
-                                            height=height,
-                                            width=width,
-                                            cfg_scale=cfg_scale,
-                                            seed=seed)
-        task_result = save_images(img_list)
+        img_list = generate_images(model_id=model_id,
+                                   task_id=task_id,
+                                   prompt=text,
+                                   batch_count=batch_count,
+                                   height=height,
+                                   width=width,
+                                   cfg_scale=cfg_scale,
+                                   seed=seed)
+    saved_paths = save_images(task_id, img_list)
+    task_result[task_id] = saved_paths
+
+
+def inpainting_image_logic(task_id, batch_count, text, imgs, mask_prompt,
+                           mask_image, negative_prompt, height, width,
+                           cfg_scale, seed):
+    img_list = inpainting_images(model_id=model_id,
+                                 task_id=task_id,
+                                 prompt=text,
+                                 mask_prompt=mask_prompt,
+                                 mask_image=mask_image,
+                                 negative_prompt=negative_prompt,
+                                 image_bytes_list=imgs,
+                                 batch_count=batch_count,
+                                 height=height,
+                                 width=width,
+                                 cfg_scale=cfg_scale,
+                                 seed=seed)
+    saved_paths = save_images(task_id, img_list)
+    task_result[task_id] = saved_paths
+
 
 @app.get("/")
 async def root():
@@ -102,6 +144,7 @@ async def generate_image(
         imgs: Optional[List[str]] = Form(None),
         cfg_scale: float = Form(...),
         seed: Optional[str] = Form(None),
+        similarityStrength: Optional[float] = Form(None),
         parameters: Optional[Dict] = Form(None),
 ):
     seed = seed or 0
@@ -119,14 +162,47 @@ async def generate_image(
     # 啟動線程執行圖片生成任務
     threading.Thread(target=run_image_generation_task,
                      args=(task_id, text, imgs, batch_count, height, width,
-                           cfg_scale, seed),
+                           cfg_scale, seed, similarityStrength),
                      daemon=True).start()
 
     return {"id": task_id}
 
 
+@app.post("/img/inpainting")
+async def inpainting_image(
+        batch_count: int = Form(...),
+        text: str = Form(...),
+        imgs: Optional[List[str]] = Form(None),
+        mask_prompt: Optional[str] = Form(None),
+        mask_image: Optional[UploadFile] = Form(None),
+        negative_prompt: str = Form(...),
+        cfg_scale: float = Form(...),
+        seed: Optional[str] = Form(None),
+        parameters: Optional[Dict] = Form(None),
+):
+    seed = seed or 0
+
+    height = parameters.get("height") if parameters else 1024
+    width = parameters.get("width") if parameters else 1024
+
+    task_id = str(uuid.uuid4())
+
+    task = {"id": task_id, "status": "queued", "result": None, "error": None}
+    logger.info(f"Received image inpainting task: {task_id}, {task}")
+    with image_tasks_lock:
+        image_tasks[task_id] = task
+
+    threading.Thread(target=run_image_inpainting_task,
+                     args=(task_id, batch_count, text, imgs, mask_prompt,
+                           mask_image, negative_prompt, height, width,
+                           cfg_scale, seed),
+                     daemon=True).start()
+    return {"id": task_id}
+
+
 @app.post("/project/create")
-async def create_project(name: str = Form(...), templateId: Optional[str] = Form(None)):
+async def create_project(name: str = Form(...),
+                         templateId: Optional[str] = Form(None)):
     try:
         cursor = conn.cursor()
 
@@ -140,7 +216,7 @@ async def create_project(name: str = Form(...), templateId: Optional[str] = Form
         VALUES (%s, %s, %s, %s, %s)
         """
         values = (project_id, name, templateId, current_time, current_time)
-        
+
         cursor.execute(insert_query, values)
         conn.commit()
 
@@ -153,12 +229,12 @@ async def create_project(name: str = Form(...), templateId: Optional[str] = Form
     except Exception as e:
         return {"error": f"Server error: {str(e)}"}, 500
 
-        
 
 @app.post("/project/save")
-async def save_project(
-    id: str = Form(...), name: str = Form(...), tags: List[str] = Form(...), images: List[str] = Form(...)
-):
+async def save_project(id: str = Form(...),
+                       name: str = Form(...),
+                       tags: List[str] = Form(...),
+                       images: List[str] = Form(...)):
     try:
         cursor = conn.cursor()
         current_time = datetime.now()
@@ -173,7 +249,7 @@ async def save_project(
 
         # Delete existing tags for the project
         delete_tags_query = "DELETE FROM project_tags WHERE project_id = %s"
-        cursor.execute(delete_tags_query, (id,))
+        cursor.execute(delete_tags_query, (id, ))
 
         # Insert new tags
         if tags:
@@ -186,7 +262,7 @@ async def save_project(
 
         # Delete existing image associations
         delete_images_query = "DELETE FROM project_images WHERE project_id = %s"
-        cursor.execute(delete_images_query, (id,))
+        cursor.execute(delete_images_query, (id, ))
 
         # Insert new image associations
         if images:
@@ -297,10 +373,11 @@ async def get_image(id: str):
         },
     }  # Placeholder
 
+
 # Create MySQL connection
-conn = mysql.connector.connect(
-    host=DATABASE_ENDPOINT,
-    user=DATABASE_USERNAME,
-    password=DATABASE_PASSWORD,
-     database="backend"
-)
+# conn = mysql.connector.connect(
+#     host=DATABASE_ENDPOINT,
+#     user=DATABASE_USERNAME,
+#     password=DATABASE_PASSWORD,
+#      database="backend"
+# )
