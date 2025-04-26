@@ -14,12 +14,14 @@ from datetime import datetime
 from fastapi.staticfiles import StaticFiles
 from img_generate.img_generator import generate_images, save_images, get_image_size, process_images
 from img_generate.img_inpainting import inpaint_images
+from img_generate.prompt_enhancer import enhance_pc_case_prompt
 import uuid
 import threading
 import asyncio
 import logging
 import base64
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 load_dotenv()
 
@@ -328,18 +330,24 @@ async def save_project(id: str = Form(...),
             tag_values = [(id, tag) for tag in tags]
             cursor.executemany(insert_tags_query, tag_values)
 
-        # Delete existing image associations
-        delete_images_query = "DELETE FROM project_images WHERE project_id = %s"
-        cursor.execute(delete_images_query, (id, ))
+        # Update image project associations
+        update_images_query = """
+        UPDATE images 
+        SET project_id = NULL 
+        WHERE project_id = %s
+        """
+        cursor.execute(update_images_query, (id,))
 
-        # Insert new image associations
         if images:
-            insert_images_query = """
-            INSERT INTO project_images (project_id, image_id)
-            VALUES (%s, %s)
+            # Update images with new project association
+            update_project_images_query = """
+            UPDATE images 
+            SET project_id = %s 
+            WHERE id IN (%s)
             """
-            image_values = [(id, image_id) for image_id in images]
-            cursor.executemany(insert_images_query, image_values)
+            format_strings = ','.join(['%s'] * len(images))
+            cursor.execute(update_project_images_query % format_strings, 
+                         tuple([id] + images))
 
         conn.commit()
         cursor.close()
@@ -454,10 +462,12 @@ async def create_template(
         """
         cursor.execute(copy_tags_query, (template_id, projectId))
 
-        # Copy project images
+        # Copy images with new project_id
         copy_images_query = """
-        INSERT INTO project_images (project_id, image_id)
-        SELECT %s, image_id FROM project_images WHERE project_id = %s
+        INSERT INTO images (id, project_id, type, seed, prompt, parameters)
+        SELECT UUID(), %s, type, seed, prompt, parameters 
+        FROM images 
+        WHERE project_id = %s
         """
         cursor.execute(copy_images_query, (template_id, projectId))
 
@@ -489,8 +499,7 @@ async def create_template(
 
 @app.post("/txt/optimize")
 async def optimize_text(text: str = Form(...)):
-    # TODO: Implement text optimization logic
-    return {"text": "optimized_text"}  # Placeholder
+    return {"text": enhance_pc_case_prompt(text)}  # Placeholder
 
 
 # GET endpoints
@@ -511,10 +520,10 @@ async def get_project(id: str):
             p.modified_at,
             p.readonly,
             GROUP_CONCAT(DISTINCT pt.tag) as tags,
-            GROUP_CONCAT(DISTINCT pi.image_id) as image_ids
+            GROUP_CONCAT(DISTINCT i.id) as image_ids
         FROM projects p
         LEFT JOIN project_tags pt ON p.id = pt.project_id
-        LEFT JOIN project_images pi ON p.id = pi.project_id
+        LEFT JOIN images i ON p.id = i.project_id
         WHERE p.id = %s
         GROUP BY p.id, p.name, p.template_id, p.created_at, p.modified_at, p.readonly
         """
@@ -531,10 +540,9 @@ async def get_project(id: str):
             
         # Get associated images with their metadata
         images_query = """
-        SELECT i.id, i.type, i.seed, i.prompt, i.parameters
-        FROM images i
-        INNER JOIN project_images pi ON i.id = pi.image_id
-        WHERE pi.project_id = %s
+        SELECT id, type, seed, prompt, parameters
+        FROM images 
+        WHERE project_id = %s
         """
         cursor.execute(images_query, (id,))
         images = cursor.fetchall()
@@ -665,8 +673,61 @@ async def get_image_result(taskId: str):
             task_status = "error"
     task_status["urls"]=task_result.get(taskId)
     return task_status
+@app.get("/thumb/{projectId}")
+async def get_thumb(projectId: str):
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get first image ID from project
+        query = """
+        SELECT id 
+        FROM images 
+        WHERE project_id = %s 
+        ORDER BY id ASC 
+        LIMIT 1
+        """
+        
+        cursor.execute(query, (projectId,))
+        result = cursor.fetchone()
+        cursor.close()
+        
+        if not result:
+            # Return default thumbnail from static folder
+            default_thumb_path = "static/default_thumb.webp"
+            if os.path.exists(default_thumb_path):
+                with open(default_thumb_path, "rb") as f:
+                    image_data = f.read()
+                return Response(
+                    content=image_data,
+                    media_type="image/webp",
+                    headers={
+                        "Cache-Control": "max-age=3600",
+                        "Content-Disposition": "inline; filename=default_thumb.webp"
+                    }
+                )
+            else:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": "No images found and default thumbnail missing"}
+                )
+            
+        # Reuse get_image_file to return the actual image
+        image_id = result['image_id']
+        return await get_image_file(image_id)
 
-
+    except mysql.connector.Error as err:
+        logger.error(f"Database error while fetching thumbnail: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        logger.error(f"Server error while fetching thumbnail: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
+        
 @app.get("/img/{id}")
 async def get_image(id: str):
     
@@ -683,13 +744,13 @@ async def get_image(id: str):
         
         # Fetch image data from S3
         # Encode image to base64
-        image_base64 = await getImageDataB64Async(id)
+        # image_base64 = await getImageDataB64Async(id)
         
         # Prepare response
         response = {
             "id": id,
             "projectId": image_metadata['project_id'],
-            "data": image_base64,
+            # "data": image_base64,
             "type": image_metadata['type'],
             "seed": image_metadata.get('seed'),
             "prompt": image_metadata.get('prompt'),
@@ -704,6 +765,60 @@ async def get_image(id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
+@app.get("/img/{imageId}/file")
+async def get_image_file(imageId: str):
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get image metadata first
+        query = "SELECT type FROM images WHERE id = %s"
+        cursor.execute(query, (imageId,))
+        result = cursor.fetchone()
+        cursor.close()
+        
+        if not result:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Image not found"}
+            )
+            
+        # Get the image data from S3
+        content_type = result['type']
+        s3_key = f"images/{imageId}"
+        
+        try:
+            s3_response = s3_client.get_object(Bucket="scottish-leader", Key=s3_key)
+            image_data = s3_response['Body'].read()
+        except Exception as e:
+            logger.error(f"Failed to fetch image from S3: {str(e)}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": f"Failed to fetch image: {str(e)}"}
+            )
+        
+        # Return image file directly
+        return Response(
+            content=image_data,
+            media_type=content_type,
+            headers={
+                "Cache-Control": "max-age=3600",
+                "Content-Disposition": f"inline; filename={imageId}"
+            }
+        )
+
+    except mysql.connector.Error as err:
+        logger.error(f"Database error while fetching image: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        logger.error(f"Server error while fetching image: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
+        
 async def getImageDataB64Async(id: str):
     # Fetch image data from S3
     s3_key = f"images/{id}"
