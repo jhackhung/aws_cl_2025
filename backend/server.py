@@ -32,6 +32,7 @@ image_tasks_lock = threading.Lock()
 
 task_result=dict()
 
+
 def run_image_generation_task(task_id, text, imgs, batch_count, height, width,
                               cfg_scale, seed):
     try:
@@ -125,13 +126,6 @@ async def generate_image(
 @app.post("/project/create")
 async def create_project(name: str = Form(...), templateId: Optional[str] = Form(None)):
     try:
-        # Create MySQL connection
-        conn = mysql.connector.connect(
-            host=DATABASE_ENDPOINT,
-            user=DATABASE_USERNAME,
-            password=DATABASE_PASSWORD,
-            database="backend"
-        )
         cursor = conn.cursor()
 
         # Generate unique project ID
@@ -149,7 +143,6 @@ async def create_project(name: str = Form(...), templateId: Optional[str] = Form
         conn.commit()
 
         cursor.close()
-        conn.close()
 
         return {"id": project_id}
 
@@ -158,14 +151,61 @@ async def create_project(name: str = Form(...), templateId: Optional[str] = Form
     except Exception as e:
         return {"error": f"Server error: {str(e)}"}, 500
 
+        
 
 @app.post("/project/save")
-async def save_project(id: str = Form(...),
-                       name: str = Form(...),
-                       tags: List[str] = Form(...),
-                       images: List[str] = Form(...)):
-    # TODO: Implement project saving logic
-    return None  # Placeholder
+async def save_project(
+    id: str = Form(...), name: str = Form(...), tags: List[str] = Form(...), images: List[str] = Form(...)
+):
+    try:
+        cursor = conn.cursor()
+        current_time = datetime.now()
+
+        # Update project details
+        update_project_query = """
+        UPDATE projects 
+        SET name = %s, modified_at = %s
+        WHERE id = %s
+        """
+        cursor.execute(update_project_query, (name, current_time, id))
+
+        # Delete existing tags for the project
+        delete_tags_query = "DELETE FROM project_tags WHERE project_id = %s"
+        cursor.execute(delete_tags_query, (id,))
+
+        # Insert new tags
+        if tags:
+            insert_tags_query = """
+            INSERT INTO project_tags (project_id, tag)
+            VALUES (%s, %s)
+            """
+            tag_values = [(id, tag) for tag in tags]
+            cursor.executemany(insert_tags_query, tag_values)
+
+        # Delete existing image associations
+        delete_images_query = "DELETE FROM project_images WHERE project_id = %s"
+        cursor.execute(delete_images_query, (id,))
+
+        # Insert new image associations
+        if images:
+            insert_images_query = """
+            INSERT INTO project_images (project_id, image_id)
+            VALUES (%s, %s)
+            """
+            image_values = [(id, image_id) for image_id in images]
+            cursor.executemany(insert_images_query, image_values)
+
+        conn.commit()
+        cursor.close()
+
+        return {"message": "Project saved successfully", "id": id}
+
+    except mysql.connector.Error as err:
+        conn.rollback()
+        return {"error": f"Database error: {str(err)}"}, 500
+    except Exception as e:
+        conn.rollback()
+        return {"error": f"Server error: {str(e)}"}, 500
 
 
 @app.post("/img/save")
@@ -254,3 +294,11 @@ async def get_image(id: str):
             "color": "red"
         },
     }  # Placeholder
+
+# Create MySQL connection
+conn = mysql.connector.connect(
+    host=DATABASE_ENDPOINT,
+    user=DATABASE_USERNAME,
+    password=DATABASE_PASSWORD,
+     database="backend"
+)
