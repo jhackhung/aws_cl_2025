@@ -1,1 +1,4 @@
 fastapi
+dotenv
+create_project
+mysql-connector-python
