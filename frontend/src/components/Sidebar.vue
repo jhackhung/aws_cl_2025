@@ -1,103 +1,3 @@
-<template>
-  <div class="sidebar" :class="{ collapsed: isCollapsed }">
-    <div class="sidebar-header">
-      <NButton quaternary circle @click="toggleCollapse">
-        <template #icon>
-          <div class="icon-container">
-            {{ isCollapsed ? '→' : '←' }}
-          </div>
-        </template>
-      </NButton>
-      <h2 class="sidebar-title" v-if="!isCollapsed">設計流程</h2>
-    </div>
-
-    <div class="workflow-steps">
-      <div class="step-list">
-        <!-- 步驟 1: 設計資料輸入 -->
-        <div 
-          class="step-item" 
-          :class="{ active: activeMenuItem === 'design-input' }"
-          @click="navigateTo('design-input')"
-        >
-          <div class="step-icon">📋</div>
-          <div class="step-content" v-if="!isCollapsed">
-            <div class="step-title">1. 設計資料輸入</div>
-            <div class="step-desc">收集設計參數與構想</div>
-          </div>
-        </div>
-
-        <!-- 步驟 2: AI 生成設計 -->
-        <div 
-          class="step-item" 
-          :class="{ active: activeMenuItem === 'ai-generate' }"
-          @click="navigateTo('ai-generate')"
-        >
-          <div class="step-icon">🚀</div>
-          <div class="step-content" v-if="!isCollapsed">
-            <div class="step-title">2. AI 生成設計</div>
-            <div class="step-desc">快速生成多樣且符合品牌風格的概念圖</div>
-          </div>
-        </div>
-
-        <!-- 步驟 3: 設計師精修 -->
-        <div 
-          class="step-item" 
-          :class="{ active: activeMenuItem === 'designer-revision' }"
-          @click="navigateTo('designer-revision')"
-        >
-          <div class="step-icon">🎨</div>
-          <div class="step-content" v-if="!isCollapsed">
-            <div class="step-title">3. 設計師精修</div>
-            <div class="step-desc">手動細修與創意微調</div>
-          </div>
-        </div>
-
-        <!-- 步驟 4: 品牌設計資料庫 -->
-        <div 
-          class="step-item" 
-          :class="{ active: activeMenuItem === 'gallery' }"
-          @click="navigateTo('gallery')"
-        >
-          <div class="step-icon">🏆</div>
-          <div class="step-content" v-if="!isCollapsed">
-            <div class="step-title">4. 品牌設計資料庫</div>
-            <div class="step-desc">儲存、製作模板，持續累積品牌設計知識</div>
-          </div>
-        </div>
-
-        <!-- 專案管理 -->
-        <div 
-          class="step-item" 
-          :class="{ active: activeMenuItem === 'project' }"
-          @click="navigateTo('project')"
-        >
-          <div class="step-icon">📁</div>
-          <div class="step-content" v-if="!isCollapsed">
-            <div class="step-title">專案管理</div>
-            <div class="step-desc">管理您的設計專案</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="sidebar-footer" v-if="!isCollapsed">
-      <div class="current-project" v-if="currentProject">
-        <h3>當前專案</h3>
-        <p>{{ currentProject.name }}</p>
-      </div>
-      
-      <div class="user-actions">
-        <NButton quaternary block @click="goToSettings">
-          <template #icon>
-            <div class="button-icon">⚙️</div>
-          </template>
-          {{ t('settings') }}
-        </NButton>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
@@ -137,7 +37,7 @@ const activeMenuItem = computed(() => {
 const navigateTo = (key) => {
   // 獲取當前項目ID，默認使用'temp'作為臨時ID
   const projectId = currentProject.value?.id || route.params.projectId || 'temp';
-  
+
   switch (key) {
     case 'design-input':
       router.push({ name: 'design-input', params: { projectId } });
@@ -148,12 +48,12 @@ const navigateTo = (key) => {
     case 'designer-revision':
       // 對於設計師精修頁面，如果有圖像ID則使用，否則回到生成頁面
       if (route.params.imageId) {
-        router.push({ 
-          name: 'designer-revision', 
-          params: { 
-            projectId, 
-            imageId: route.params.imageId 
-          } 
+        router.push({
+          name: 'designer-revision',
+          params: {
+            projectId,
+            imageId: route.params.imageId
+          }
         });
       } else {
         // 如果沒有圖像ID，則導航到AI生成頁面
@@ -182,6 +82,10 @@ const goToSettings = () => {
   router.push({ name: 'settings' });
 };
 
+function goToHomepage() {
+  router.push("/");
+}
+
 // 在組件掛載時檢查當前項目
 onMounted(() => {
   const id = route.params.projectId;
@@ -190,6 +94,90 @@ onMounted(() => {
   }
 });
 </script>
+<template>
+  <div class="sidebar" :class="{ collapsed: isCollapsed }">
+    <div class="sidebar-header">
+      <NButton quaternary circle @click="toggleCollapse">
+        <template #icon>
+          <div class="icon-container">
+            {{ isCollapsed ? '→' : '←' }}
+          </div>
+        </template>
+      </NButton>
+      <h2 class="sidebar-title" v-if="!isCollapsed && currentProject">
+        {{ currentProject.name }}
+      </h2>
+    </div>
+
+    <div class="workflow-steps">
+      <div class="step-list">
+        <!-- 步驟 1: 設計資料輸入 -->
+        <div class="step-item" :class="{ active: activeMenuItem === 'design-input' }"
+          @click="navigateTo('design-input')">
+          <div class="step-icon">📋</div>
+          <div class="step-content" v-if="!isCollapsed">
+            <div class="step-title">1. 設計資料輸入</div>
+            <div class="step-desc">收集設計參數與構想</div>
+          </div>
+        </div>
+
+        <!-- 步驟 2: AI 生成設計 -->
+        <div class="step-item" :class="{ active: activeMenuItem === 'ai-generate' }" @click="navigateTo('ai-generate')">
+          <div class="step-icon">🚀</div>
+          <div class="step-content" v-if="!isCollapsed">
+            <div class="step-title">2. AI 生成設計</div>
+            <div class="step-desc">快速生成多樣且符合品牌風格的概念圖</div>
+          </div>
+        </div>
+
+        <!-- 步驟 3: 設計師精修 -->
+        <div class="step-item" :class="{ active: activeMenuItem === 'designer-revision' }"
+          @click="navigateTo('designer-revision')">
+          <div class="step-icon">🎨</div>
+          <div class="step-content" v-if="!isCollapsed">
+            <div class="step-title">3. 設計師精修</div>
+            <div class="step-desc">手動細修與創意微調</div>
+          </div>
+        </div>
+
+        <!-- 步驟 4: 品牌設計資料庫 -->
+        <div class="step-item" :class="{ active: activeMenuItem === 'gallery' }" @click="navigateTo('gallery')">
+          <div class="step-icon">🏆</div>
+          <div class="step-content" v-if="!isCollapsed">
+            <div class="step-title">4. 品牌設計資料庫</div>
+            <div class="step-desc">儲存、製作模板，持續累積品牌設計知識</div>
+          </div>
+        </div>
+
+        <!-- 專案管理 -->
+        <div class="step-item" :class="{ active: activeMenuItem === 'project' }" @click="navigateTo('project')">
+          <div class="step-icon">📁</div>
+          <div class="step-content" v-if="!isCollapsed">
+            <div class="step-title">專案管理</div>
+            <div class="step-desc">管理您的設計專案</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-footer" v-if="!isCollapsed">
+
+      <NButton quaternary block @click="goToHomepage">
+        <h3>關於我們</h3>
+      </NButton>
+
+      <div class="user-actions">
+        <NButton quaternary block @click="goToSettings">
+          <template #icon>
+            <div class="button-icon">⚙️</div>
+          </template>
+          {{ t('settings') }}
+        </NButton>
+      </div>
+    </div>
+  </div>
+</template>
+
 
 <style scoped>
 .sidebar {
@@ -364,7 +352,7 @@ onMounted(() => {
   .sidebar {
     width: 200px;
   }
-  
+
   .sidebar.collapsed {
     transform: translateX(-100%);
     box-shadow: none;
