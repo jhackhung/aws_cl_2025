@@ -127,12 +127,12 @@
     <div class="parameter-group">
       <div class="form-group">
         <label for="height">高度:</label>
-        <input type="number" id="height" min="64" max="1024" step="8" value="512" />
+        <input type="number" id="height" min="64" max="1920" step="8" value="512" />
       </div>
 
       <div class="form-group">
         <label for="width">宽度:</label>
-        <input type="number" id="width" min="64" max="1024" step="8" value="512" />
+        <input type="number" id="width" min="64" max="1920" step="8" value="512" />
       </div>
     </div>
     <!-- Adding similarityStrength after the seed input -->
@@ -185,10 +185,10 @@
         }
 
         const parameters = {
-          height: parseInt(height),
-          width: parseInt(width),
+          "height": parseInt(height),
+          "width": parseInt(width),
         };
-        // formData.append('parameters', JSON.stringify(parameters));
+        formData.append('parameters', parameters);
 
         let imgList = [];
         const imageIdInput = document.getElementById("imageIdInput").value.trim();
