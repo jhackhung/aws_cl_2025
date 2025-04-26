@@ -409,12 +409,8 @@ const optimizePrompt = async () => {
 // 風格選項
 const styleOptions = [
   { label: "現代簡約", value: "modern_minimalist" },
-  { label: "復古懷舊", value: "retro_vintage" },
-  { label: "自然有機", value: "natural_organic" },
   { label: "科技未來", value: "tech_futuristic" },
   { label: "工業風格", value: "industrial" },
-  { label: "北歐風格", value: "scandinavian" },
-  { label: "熱帶度假", value: "tropical_resort" },
 ];
 
 // 尺寸選項
@@ -546,6 +542,15 @@ const clearForm = () => {
   };
 };
 
+// 更新參考圖像的提示詞
+const updateReferencePrompt = (index, prompt) => {
+  const newImages = [...referenceImages.value];
+  if (newImages[index]) {
+    newImages[index].prompt = prompt;
+    imageStore.setReferenceImages(newImages);
+  }
+};
+
 // 開始生成
 const startGeneration = async () => {
   if (!form.value.prompt.trim()) return;
@@ -555,35 +560,7 @@ const startGeneration = async () => {
 
     // 如果選擇隨機種子，生成一個新的隨機種子
     if (form.value.randomizeSeed) {
-      form.value.seed = String(Math.floor(Math.random() * 1000000));
-    }
-
-    const [width, height] = form.value.size.split("x").map(Number);
-    const parameters = { width, height };
-
-    // 如果有選擇風格，加入參數
-    // if (form.value.style) {
-    //   parameters.style = form.value.style;
-    // }
-
-    // 準備參考圖像列表
-    let referenceImgList = [];
-    if (referenceImages.value.length > 0) {
-      // 這裡假設 referenceImages 包含的是 URL 或其他標識符
-      // 可能需要根據實際情況調整
-      // referenceImgList = referenceImages.value.map((img) => img.url || img);
-      // referenceImgList.forEach((img) => {
-      //   formData.append("imgs", img);
-      // });
-    }
-    referenceImgList = referenceImages.value.map((img) => img.url || img);
-    referenceImgList.forEach((img) => {
-      formData.append("imgs", img);
-    });
-
-    if (referenceImgList.length > 0) {
-      formData.append("imgs", JSON.stringify(referenceImgList));
-      formData.append("similarityStrength", form.value.referenceStrength / 100);
+      form.value.seed = Math.floor(Math.random() * 1000000).toString();
     }
 
     // 創建表單數據
@@ -592,34 +569,74 @@ const startGeneration = async () => {
     formData.append("text", form.value.prompt);
 
     // 添加負面提示詞（如果有）
-    // if (form.value.negativePrompt) {
-    //   formData.append("negative_prompt", form.value.negativePrompt);
-    // }
+    if (form.value.negativePrompt) {
+      formData.append("negative_prompt", form.value.negativePrompt);
+    }
 
     formData.append("cfg_scale", form.value.cfgScale);
-    formData.append("seed", form.value.seed);
+    // 會導致錯誤，因為 API 端點不接受這個參數
+    // formData.append("seed", form.value.seed);
 
-    // 添加參數
-    formData.append("parameters", JSON.stringify(parameters));
+    // 處理尺寸參數與其他參數
+    const [width, height] = form.value.size.split("x").map(Number);
 
-    // 如果有參考圖像，添加相關參數
-    // if (referenceImgList.length > 0) {
-    //   formData.append("imgs", JSON.stringify(referenceImgList));
-    //   // 將百分比轉換為 0-1 範圍的值
-    //   formData.append("similarityStrength", form.value.referenceStrength / 100);
-    // }
+    // 直接將參數作為字典形式傳遞，不使用 JSON.stringify
+    formData.append("parameters[width]", width);
+    formData.append("parameters[height]", height);
+    formData.append("parameters[steps]", form.value.steps);
 
+    // 如果有選擇風格，加入參數
+    if (form.value.style) {
+      formData.append("parameters[style]", form.value.style);
+    }
+
+    // 如果有選擇特定模型，加入參數
+    if (form.value.model && form.value.model !== "default") {
+      formData.append("parameters[model]", form.value.model);
+    }
+
+    // 處理參考圖像
+    if (referenceImages.value.length > 0) {
+      // 獲取參考圖像 URL 列表
+      const imageUrls = referenceImages.value.map((img) => img.url || img);
+
+      // 將圖像 URL 數組轉為 JSON 字符串
+      formData.append("imgs", JSON.stringify(imageUrls));
+
+      // 添加參考強度
+      formData.append(
+        "similarityStrength",
+        (form.value.referenceStrength / 100).toString()
+      );
+
+      // 收集參考圖像的提示詞
+      const refPrompts = referenceImages.value.map((img) => img.prompt || "");
+      if (refPrompts.some((prompt) => prompt)) {
+        formData.append("reference_prompts", JSON.stringify(refPrompts));
+      }
+    }
+
+    // 發送請求到 API 端點
     const response = await fetch("https://ec2.sausagee.party/img/generate", {
       method: "POST",
       body: formData,
     });
 
     if (!response.ok) {
-      throw new Error(`API 錯誤: ${response.status}`);
+      const errorData = await response.text();
+      console.error("生成失敗:", response.status, errorData);
+      throw new Error(`API 錯誤: ${response.status} - ${errorData}`);
     }
 
     const data = await response.json();
+
+    // 檢查回應中是否包含任務 ID
+    if (!data.id) {
+      throw new Error("API 返回的數據中缺少任務 ID");
+    }
+
     const taskId = data.id;
+    console.log("生成任務已啟動，任務 ID:", taskId);
 
     // 保存生成參數
     imageStore.setGenerationParams({
@@ -632,6 +649,7 @@ const startGeneration = async () => {
       seed: form.value.seed,
       batchCount: form.value.count,
       model: form.value.model,
+      taskId: taskId, // 儲存任務 ID 以供後續使用
     });
 
     // 導航到生成頁面
@@ -640,9 +658,13 @@ const startGeneration = async () => {
       params: {
         projectId: projectId.value !== "temp" ? projectId.value : "temp",
       },
+      query: {
+        taskId: taskId, // 將任務 ID 作為查詢參數傳遞
+      },
     });
   } catch (error) {
     console.error("開始生成失敗:", error);
+    // 這裡可以加入錯誤處理，例如使用通知組件顯示錯誤信息
   } finally {
     loading.value = false;
   }
