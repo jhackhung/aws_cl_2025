@@ -1,1 +1,4 @@
 fastapi
+boto3
+botocore
+Pillow
