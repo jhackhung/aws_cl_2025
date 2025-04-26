@@ -98,8 +98,8 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
         uploaded_image_bytes = []
         for img_id in imgs:
             img_base64 = await get_image(img_id)
-            if img_base64:
-                uploaded_image_bytes.append(img_base64)
+            if img_base64['data']:
+                uploaded_image_bytes.append(img_base64['data'])
 
 
         # 可依第一張圖片大小補高度寬度
@@ -139,8 +139,9 @@ async def inpainting_image_logic(task_id, batch_count, text, imgs, mask_prompt,
         uploaded_image_bytes = []
         for img_id in imgs:
             img_base64 = await get_image(img_id)
-            if img_base64:
-                uploaded_image_bytes.append(img_base64)
+            
+            if img_base64['data']:
+                uploaded_image_bytes.append(img_base64['data'])
 
         # 可依第一張圖片大小補高度寬度
         if not height or not width:
@@ -643,13 +644,16 @@ async def get_image_result(taskId: str):
         if not task_status:
             task_status = "error"
     return {
-        "status": task_status,
+        # "status": task_status['status'],
+        'status': task_status,
         "urls": task_result.get(taskId)
     }  # Placeholder
 
 
 @app.get("/img/{id}")
 async def get_image(id: str):
+    
+    logger.info(f"Fetching image metadata: id: {id}")
     try:
         cursor = conn.cursor(dictionary=True)
         
@@ -657,7 +661,6 @@ async def get_image(id: str):
         select_query = "SELECT * FROM images WHERE id = %s"
         cursor.execute(select_query, (id,))
         image_metadata = cursor.fetchone()
-        
         if not image_metadata:
             raise HTTPException(status_code=404, detail="Image not found")
         
