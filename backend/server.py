@@ -1,6 +1,6 @@
 import json
 import boto3
-from fastapi import FastAPI, UploadFile, Form
+from fastapi import FastAPI, UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict
 from datetime import datetime
@@ -10,6 +10,13 @@ import mysql.connector
 import uuid
 from datetime import datetime
 from fastapi.staticfiles import StaticFiles
+from img_generate.img_generator import generate_images, save_images, get_image_size, process_images
+from img_generate.img_inpainting import inpaint_images
+import uuid
+import threading
+import asyncio
+import logging
+import base64
 
 load_dotenv()
 
@@ -17,12 +24,6 @@ DATABASE_PASSWORD = os.getenv('DATABASE_PASSWORD')
 DATABASE_USERNAME = os.getenv('DATABASE_USERNAME')
 DATABASE_ENDPOINT = os.getenv('DATABASE_ENDPOINT')
 
-from img_generate.img_generator import generate_images, save_images, get_image_size, process_images
-from img_generate.img_inpainting import inpaint_images
-import uuid
-import threading
-import asyncio
-import logging
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -84,7 +85,13 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
                                cfg_scale, seed, similarityStrength):
 
     if imgs:
-        uploaded_image_bytes = [await img.read() for img in imgs]
+        # uploaded_image_bytes = [await img.read() for img in imgs]
+        uploaded_image_bytes = []
+        for img_id in imgs:
+            img = await get_image(img_id)
+            if img:
+                uploaded_image_bytes.append(base64.b64encode(img.read()).decode('utf8'))
+
 
         # 可依第一張圖片大小補高度寬度
         if not height or not width:
@@ -115,16 +122,31 @@ async def generate_image_logic(task_id, text, imgs, batch_count, height, width,
     task_result[task_id] = saved_paths
 
 
-def inpainting_image_logic(task_id, batch_count, text, imgs, mask_prompt,
+async def inpainting_image_logic(task_id, batch_count, text, imgs, mask_prompt,
                            mask_image, negative_prompt, height, width,
                            cfg_scale, seed):
+    if imgs:
+        # uploaded_image_bytes = [await img.read() for img in imgs]
+        uploaded_image_bytes = []
+        for img_id in imgs:
+            img = await get_image(img_id)
+            if img:
+                uploaded_image_bytes.append(base64.b64encode(img.read()).decode('utf8'))
+
+        # 可依第一張圖片大小補高度寬度
+        if not height or not width:
+            first_image_size = await get_image_size(uploaded_image_bytes[0])
+            height = height or first_image_size["height"]
+            width = width or first_image_size["width"]
+
+    
     img_list = inpaint_images(model_id=model_id,
                                  task_id=task_id,
                                  prompt=text,
                                  mask_prompt=mask_prompt,
                                  mask_image=mask_image,
                                  negative_prompt=negative_prompt,
-                                 image_bytes_list=imgs,
+                                 image_bytes_list=uploaded_image_bytes,
                                  batch_count=batch_count,
                                  height=height,
                                  width=width,
@@ -153,6 +175,14 @@ async def generate_image(
 
     height = parameters.get("height") if parameters else 1024
     width = parameters.get("width") if parameters else 1024
+
+    if parameters:
+        for feature_key, feature_value in parameters.items():
+            # Skip height and width since they're used for image dimensions
+            if feature_key not in ["height", "width"]:
+                text += f" {feature_key}:{feature_value}"
+
+    logger.info("text: %s", text)
 
     task_id = str(uuid.uuid4())  # Generate a unique task ID
 
@@ -186,6 +216,12 @@ async def inpainting_image(
 
     height = parameters.get("height") if parameters else 1024
     width = parameters.get("width") if parameters else 1024
+
+    if parameters:
+        for feature_key, feature_value in parameters.items():
+            # Skip height and width since they're used for image dimensions
+            if feature_key not in ["height", "width"]:
+                text += f" {feature_key}:{feature_value}"
 
     task_id = str(uuid.uuid4())
 
@@ -605,18 +641,46 @@ async def get_image_result(taskId: str):
 
 @app.get("/img/{id}")
 async def get_image(id: str):
-    # TODO: Implement image retrieval logic
-    return {
-        "id": id,
-        "projectId": "project_id",
-        "data": "base64_string",
-        "type": "image/png",
-        "seed": "seed_value",
-        "prompt": "prompt_text",
-        "parameters": {
-            "color": "red"
-        },
-    }  # Placeholder
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Fetch image metadata from database
+        select_query = "SELECT * FROM images WHERE id = %s"
+        cursor.execute(select_query, (id,))
+        image_metadata = cursor.fetchone()
+        
+        if not image_metadata:
+            raise HTTPException(status_code=404, detail="Image not found")
+        
+        # Fetch image data from S3
+        s3_key = f"images/{id}"
+        try:
+            s3_response = s3_client.get_object(Bucket="scottish-leader", Key=s3_key)
+            image_data = s3_response['Body'].read()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to fetch image from S3: {str(e)}")
+        
+        # Encode image to base64
+        image_base64 = base64.b64encode(image_data).decode('utf-8')
+        
+        # Prepare response
+        response = {
+            "id": id,
+            "projectId": image_metadata['project_id'],
+            "data": image_base64,
+            "type": image_metadata['type'],
+            "seed": image_metadata.get('seed'),
+            "prompt": image_metadata.get('prompt'),
+            "parameters": json.loads(image_metadata['parameters']) if image_metadata.get('parameters') else {},
+        }
+        
+        cursor.close()
+        return JSONResponse(content=response)
+
+    except mysql.connector.Error as err:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(err)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 
 # Create MySQL connection
