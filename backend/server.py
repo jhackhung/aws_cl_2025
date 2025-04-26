@@ -350,11 +350,75 @@ async def save_image(
         conn.rollback()
         return {"error": f"Server error: {str(e)}"}, 500
 
-
 @app.post("/template/create")
-async def create_template(projectId: str = Form(...)):
-    # TODO: Implement template creation logic
-    return {"templateId": "template_id"}  # Placeholder
+async def create_template(
+    projectId: str = Form(...),
+    name: Optional[str] = Form(None)
+):
+    try:
+        cursor = conn.cursor(dictionary=True)
+        template_id = str(uuid.uuid4())
+        current_time = datetime.now()
+
+        # First verify the source project exists and get its details
+        cursor.execute("SELECT name FROM projects WHERE id = %s", (projectId,))
+        source_project = cursor.fetchone()
+        if not source_project:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Source project not found"}
+            )
+
+        # Use provided name or generate one from source project
+        template_name = name or f"Template - {source_project['name']}"
+
+        # Copy project metadata with readonly flag
+        copy_project_query = """
+        INSERT INTO projects (id, name, created_at, modified_at, readonly)
+        SELECT %s, %s, %s, %s, TRUE
+        FROM projects WHERE id = %s
+        """
+        cursor.execute(copy_project_query, 
+                      (template_id, template_name, current_time, current_time, projectId))
+
+        # Copy project tags
+        copy_tags_query = """
+        INSERT INTO project_tags (project_id, tag)
+        SELECT %s, tag FROM project_tags WHERE project_id = %s
+        """
+        cursor.execute(copy_tags_query, (template_id, projectId))
+
+        # Copy project images
+        copy_images_query = """
+        INSERT INTO project_images (project_id, image_id)
+        SELECT %s, image_id FROM project_images WHERE project_id = %s
+        """
+        cursor.execute(copy_images_query, (template_id, projectId))
+
+        conn.commit()
+        cursor.close()
+
+        return {
+            "templateId": template_id,
+            "name": template_name,
+            "sourceProjectId": projectId,
+            "created": current_time.isoformat()
+        }
+
+    except mysql.connector.Error as err:
+        conn.rollback()
+        logger.error(f"Database error while creating template: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Server error while creating template: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
 
 
 @app.post("/txt/optimize")
@@ -368,32 +432,162 @@ async def optimize_text(text: str = Form(...)):
 
 @app.get("/project/{id}")
 async def get_project(id: str):
-    # TODO: Implement project retrieval logic
-    return {
-        "id": id,
-        "tags": [],
-        "images": [],
-        "created": datetime.now(),
-        "modified": datetime.now()
-    }  # Placeholder
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get project details including template info if it exists
+        project_query = """
+        SELECT 
+            p.id,
+            p.name,
+            p.template_id,
+            p.created_at,
+            p.modified_at,
+            p.readonly,
+            GROUP_CONCAT(DISTINCT pt.tag) as tags,
+            GROUP_CONCAT(DISTINCT pi.image_id) as image_ids
+        FROM projects p
+        LEFT JOIN project_tags pt ON p.id = pt.project_id
+        LEFT JOIN project_images pi ON p.id = pi.project_id
+        WHERE p.id = %s
+        GROUP BY p.id, p.name, p.template_id, p.created_at, p.modified_at, p.readonly
+        """
+        
+        cursor.execute(project_query, (id,))
+        project = cursor.fetchone()
+        
+        if not project:
+            cursor.close()
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Project not found"}
+            )
+            
+        # Get associated images with their metadata
+        images_query = """
+        SELECT i.id, i.type, i.seed, i.prompt, i.parameters
+        FROM images i
+        INNER JOIN project_images pi ON i.id = pi.image_id
+        WHERE pi.project_id = %s
+        """
+        cursor.execute(images_query, (id,))
+        images = cursor.fetchall()
+        
+        cursor.close()
 
+        # Process images data
+        processed_images = []
+        for img in images:
+            processed_images.append({
+                "id": img["id"],
+                "type": img["type"],
+                "seed": img["seed"],
+                "prompt": img["prompt"],
+                "parameters": json.loads(img["parameters"]) if img["parameters"] else None
+            })
 
-@app.get("/template/all")
+        # Prepare response
+        response = {
+            "id": project["id"],
+            "name": project["name"],
+            "templateId": project["template_id"],
+            "readonly": project["readonly"],
+            "tags": project["tags"].split(",") if project["tags"] else [],
+            "images": processed_images,
+            "created": project["created_at"].isoformat(),
+            "modified": project["modified_at"].isoformat()
+        }
+        
+        return response
+
+    except mysql.connector.Error as err:
+        logger.error(f"Database error while fetching project: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        logger.error(f"Server error while fetching project: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
+    
+@app.get("/templates")
 async def get_all_templates():
-    # TODO: Implement template retrieval logic
-    return {"templateIds": ["template_id_1", "template_id_2"]}  # Placeholder
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Simplified query to get only template IDs
+        query = """
+        SELECT id
+        FROM projects
+        WHERE readonly = TRUE
+        ORDER BY modified_at DESC
+        """
+        
+        cursor.execute(query)
+        templates = cursor.fetchall()
+        cursor.close()
+        
+        # Extract just the IDs
+        template_ids = [template["id"] for template in templates]
+        
+        return {"templates": template_ids}
+
+    except mysql.connector.Error as err:
+        logger.error(f"Database error while fetching templates: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        logger.error(f"Server error while fetching templates: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
+
+
+@app.get("/projects")
+async def get_all_projects():
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Simplified query to get only project IDs for non-templates
+        query = """
+        SELECT id
+        FROM projects
+        WHERE readonly = FALSE
+        ORDER BY modified_at DESC
+        """
+        
+        cursor.execute(query)
+        projects = cursor.fetchall()
+        cursor.close()
+        
+        # Extract just the IDs
+        project_ids = [project["id"] for project in projects]
+        
+        return {"projects": project_ids}
+
+    except mysql.connector.Error as err:
+        logger.error(f"Database error while fetching projects: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        logger.error(f"Server error while fetching projects: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
 
 
 @app.get("/template/{id}")
 async def get_template(id: str):
-    # TODO: Implement template retrieval logic
-    return {
-        "id": id,
-        "tags": [],
-        "images": [],
-        "created": datetime.now(),
-        "modified": datetime.now()
-    }  # Placeholder
+    return await get_project(id)
 
 
 @app.get("/img/result/{taskId}")
