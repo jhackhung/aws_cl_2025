@@ -1,3 +1,5 @@
+import json
+import boto3
 from fastapi import FastAPI, UploadFile, Form
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict
@@ -289,15 +291,64 @@ async def save_project(id: str = Form(...),
 @app.post("/img/save")
 async def save_image(
         projectId: str = Form(...),
-        data: str = Form(...),  # Assuming base64 string
-        type: str = Form(...),  # Mime-type
+        file: UploadFile = Form(...),
         id: Optional[str] = Form(None),
         seed: Optional[str] = Form(None),
         prompt: Optional[str] = Form(None),
         parameters: Optional[Dict] = Form(None),
 ):
-    # TODO: Implement image saving logic
-    return {"id": "image_id"}  # Placeholder
+    try:
+        cursor = conn.cursor()
+        
+        # Generate image ID if not provided
+        image_id = id or str(uuid.uuid4())
+        
+        # Convert parameters to JSON if provided
+        parameters_json = json.dumps(parameters) if parameters else None
+        
+        # Read image data
+        image_data = await file.read()
+        # Log image details
+        logger.info(f"Saving image {image_id} for project {projectId}. File type: {file.content_type}, Size: {len(image_data)} bytes")
+        # Upload to S3
+        try:
+            s3_key = f"images/{image_id}"
+            s3_client.put_object(
+                Bucket="scottish-leader",
+                Key=s3_key,
+                Body=image_data,
+                ContentType=file.content_type
+            )
+        except Exception as e:
+            logger.error(f"S3 upload failed: {str(e)}")
+            return {"error": f"Failed to upload image: {str(e)}"}, 500
+        
+        # Insert image metadata into database
+        insert_query = """
+        INSERT INTO images (id, project_id, type, seed, prompt, parameters)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            type = VALUES(type),
+            seed = VALUES(seed),
+            prompt = VALUES(prompt),
+            parameters = VALUES(parameters)
+        """
+        values = (image_id, projectId, file.content_type, seed, prompt, parameters_json)
+        
+        cursor.execute(insert_query, values)
+        conn.commit()
+        cursor.close()
+        
+        return {
+            "id": image_id,
+        }
+
+    except mysql.connector.Error as err:
+        conn.rollback()
+        return {"error": f"Database error: {str(err)}"}, 500
+    except Exception as e:
+        conn.rollback()
+        return {"error": f"Server error: {str(e)}"}, 500
 
 
 @app.post("/template/create")
@@ -375,9 +426,12 @@ async def get_image(id: str):
 
 
 # Create MySQL connection
-# conn = mysql.connector.connect(
-#     host=DATABASE_ENDPOINT,
-#     user=DATABASE_USERNAME,
-#     password=DATABASE_PASSWORD,
-#      database="backend"
-# )
+conn = mysql.connector.connect(
+    host=DATABASE_ENDPOINT,
+    user=DATABASE_USERNAME,
+    password=DATABASE_PASSWORD,
+     database="backend"
+)
+
+
+s3_client = boto3.client("s3")
