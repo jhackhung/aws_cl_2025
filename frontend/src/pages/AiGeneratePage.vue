@@ -33,12 +33,40 @@
               ★
             </NButton>
             <NButton
-              class="optimize-button"
+              class="generate-button"
               type="primary"
               @click="regenerateImages"
-              title="優化提示詞"
-              >Generate</NButton
+              title="生成圖片"
             >
+              Generate
+            </NButton>
+          </div>
+          <div
+            class="selected-images-container"
+            v-if="selectedImageIds.length > 0"
+          >
+            <div class="selected-count" @click="toggleSelectedImagesDropdown">
+              你選擇了 {{ selectedImageIds.length }} 張圖片
+              <NIcon class="dropdown-icon">{{
+                showSelectedImagesDropdown ? "▲" : "▼"
+              }}</NIcon>
+            </div>
+            <div
+              class="selected-images-dropdown"
+              v-if="showSelectedImagesDropdown"
+            >
+              <div
+                v-for="id in selectedImageIds"
+                :key="id"
+                class="selected-image-item"
+                @click="scrollToImage(id)"
+              >
+                圖片 ID: {{ id.substring(id.length - 6) }}
+              </div>
+            </div>
+          </div>
+          <div class="saved-count" v-if="savedImageIds.length > 0">
+            你儲存了 {{ savedImageIds.length }} 張圖片
           </div>
           <NTag v-if="style" type="info">{{ style }}</NTag>
         </div>
@@ -71,9 +99,11 @@
                   :class="[
                     'image-card',
                     { selected: selectedImageIds.includes(image.id) },
+                    { highlighted: highlightedImageId === image.id },
                   ]"
                   @click="toggleImageSelection(image.id)"
                   class="image-card-container"
+                  :data-image-id="image.id"
                 >
                   <NImage
                     :src="image.url"
@@ -83,13 +113,11 @@
                     preview-disabled
                   />
                   <div class="image-overlay">
-                    <div class="selection-indicator">
-                      <NIcon
-                        size="24"
-                        class="check-icon"
-                        v-if="selectedImageIds.includes(image.id)"
-                        >✓</NIcon
-                      >
+                    <div
+                      class="selection-indicator"
+                      v-if="selectedImageIds.includes(image.id)"
+                    >
+                      <NIcon size="24" class="check-icon">✓</NIcon>
                     </div>
                     <div class="image-actions">
                       <NButton
@@ -248,6 +276,7 @@ const formatTimestamp = (timestamp) => {
 
 // 選中圖片ID數組
 const selectedImageIds = ref([]);
+const savedImageIds = ref([]);
 
 // 監視選中的圖片ID更新選中圖片數組
 selectedImages.value = computed(() => {
@@ -258,6 +287,39 @@ selectedImages.value = computed(() => {
     })
     .filter((index) => index !== null);
 });
+
+// 選中圖片下拉列表控制
+const showSelectedImagesDropdown = ref(false);
+const highlightedImageId = ref(null);
+
+// 切換選中圖片下拉列表顯示狀態
+const toggleSelectedImagesDropdown = () => {
+  showSelectedImagesDropdown.value = !showSelectedImagesDropdown.value;
+};
+
+// 滾動到指定圖片並高亮顯示
+const scrollToImage = (imageId) => {
+  // 關閉下拉列表
+  showSelectedImagesDropdown.value = false;
+
+  // 設置高亮圖片ID
+  highlightedImageId.value = imageId;
+
+  // 延遲一下再滾動，確保DOM已更新
+  setTimeout(() => {
+    // 查找對應的圖片元素
+    const imageElement = document.querySelector(`[data-image-id="${imageId}"]`);
+    if (imageElement) {
+      // 滾動到圖片位置
+      imageElement.scrollIntoView({ behavior: "smooth", block: "center" });
+
+      // 3秒後移除高亮效果
+      setTimeout(() => {
+        highlightedImageId.value = null;
+      }, 3000);
+    }
+  }, 100);
+};
 
 // 初始載入數據
 onMounted(() => {
@@ -521,6 +583,93 @@ const optimizePrompt = async () => {
   align-items: center;
   align-self: stretch;
   white-space: nowrap;
+}
+
+.generate-button {
+  height: auto;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  white-space: nowrap;
+  background-color: #18a058; /* Green color */
+  color: white; /* Ensuring text is white for contrast */
+  border-color: #18a058;
+}
+
+.generate-button:hover {
+  background-color: #36ad6a; /* Slightly lighter green for hover state */
+  border-color: #36ad6a;
+}
+
+.selected-count {
+  margin-top: 8px;
+  font-size: 0.9em;
+  color: #2080f0;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+.dropdown-icon {
+  margin-left: 8px;
+  font-size: 0.8em;
+}
+
+.selected-images-container {
+  position: relative;
+}
+
+.selected-images-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  max-width: 240px;
+  background-color: white;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.selected-image-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.selected-image-item:hover {
+  background-color: #f5f5f5;
+  color: #2080f0;
+}
+
+.image-card-container.highlighted {
+  border: 3px solid #ff4d4f;
+  animation: glow 1.5s ease-in-out infinite alternate;
+  box-shadow: 0 0 20px rgba(255, 77, 79, 0.7);
+  z-index: 2;
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 5px rgba(255, 77, 79, 0.7);
+  }
+  to {
+    box-shadow: 0 0 20px rgba(255, 77, 79, 0.9), 0 0 30px rgba(255, 77, 79, 0.5);
+  }
+}
+
+.saved-count {
+  margin-top: 4px;
+  font-size: 0.9em;
+  color: #18a058; /* Green color to match the Generate button */
+  font-weight: 500;
+  text-align: left;
 }
 
 @media (max-width: 768px) {
