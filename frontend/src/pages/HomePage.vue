@@ -172,9 +172,9 @@ import { ref, onMounted, onUnmounted, computed, h } from "vue";
 import { useRouter } from "vue-router";
 import { NButton, NIcon } from "naive-ui";
 import gsap from "gsap";
+import { useI18n } from "vue-i18n";
 
-
-const { t } = useTranslation();
+const { t } = useI18n();
 
 // Icons
 const ArrowRightIcon = () =>
@@ -319,43 +319,43 @@ const featureHovered = ref(null);
 const testimonialsSlider = ref(null);
 
 // PC case images for floating animation
-const floatingImages = ref([
-  {
-    url: new URL("../assets/homepage_img/1.png", import.meta.url).href,
-    top: 10,
-    left: 80,
-    size: 200,
-    zIndex: 2,
-  },
-  {
-    url: new URL("../assets/homepage_img/2.png", import.meta.url).href,
-    top: 60,
-    left: 75,
-    size: 150,
-    zIndex: 1,
-  },
-  {
-    url: new URL("../assets/homepage_img/3.png", import.meta.url).href,
-    top: 30,
-    left: 83,
-    size: 180,
-    zIndex: 3,
-  },
-  {
-    url: new URL("../assets/homepage_img/4.png", import.meta.url).href,
-    top: 70,
-    left: 15,
-    size: 230,
-    zIndex: 1,
-  },
-  {
-    url: new URL("../assets/homepage_img/5.png", import.meta.url).href,
-    top: 20,
-    left: 10,
-    size: 170,
-    zIndex: 2,
-  },
-]);
+// const floatingImages = ref([
+//   {
+//     url: new URL("../assets/homepage_img/1.png", import.meta.url).href,
+//     top: 10,
+//     left: 80,
+//     size: 200,
+//     zIndex: 2,
+//   },
+//   {
+//     url: new URL("../assets/homepage_img/2.png", import.meta.url).href,
+//     top: 60,
+//     left: 75,
+//     size: 150,
+//     zIndex: 1,
+//   },
+//   {
+//     url: new URL("../assets/homepage_img/3.png", import.meta.url).href,
+//     top: 30,
+//     left: 83,
+//     size: 180,
+//     zIndex: 3,
+//   },
+//   {
+//     url: new URL("../assets/homepage_img/4.png", import.meta.url).href,
+//     top: 70,
+//     left: 15,
+//     size: 230,
+//     zIndex: 1,
+//   },
+//   {
+//     url: new URL("../assets/homepage_img/5.png", import.meta.url).href,
+//     top: 20,
+//     left: 10,
+//     size: 170,
+//     zIndex: 2,
+//   },
+// ]);
 
 // Features grid data
 const features = [
@@ -406,21 +406,21 @@ const features = [
 // Design Process steps
 const designSteps = computed(() => [
   {
-    title: t('designInputTitle'),
-    description: t('designInputDescription'),
+    title: t("designInputTitle"),
+    description: t("designInputDescription"),
   },
   {
-    title: t('aiGenerateTitle'),
-    description: t('aiGenerateDescription'),
+    title: t("aiGenerateTitle"),
+    description: t("aiGenerateDescription"),
   },
   {
-    title: t('designerRevisionTitle'),
-    description: t('designerRevisionDescription'),
+    title: t("designerRevisionTitle"),
+    description: t("designerRevisionDescription"),
   },
   {
-    title: t('integrationTitle'),
-    description: t('integrationDescription'),
-  }
+    title: t("integrationTitle"),
+    description: t("integrationDescription"),
+  },
 ]);
 const galleryItems = ref([
   {
