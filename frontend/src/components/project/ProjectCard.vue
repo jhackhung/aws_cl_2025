@@ -59,8 +59,12 @@ const formatDate = (dateString) => {
 
 <style scoped>
 .project-card {
+  display: flex;
+  flex-direction: column;
   cursor: pointer;
   transition: transform 0.2s ease-in-out;
+  height: 100%; /* Make card fill the grid cell height */
+  width: 100%; /* Make card fill the grid cell width */
 }
 
 .project-card:hover {
@@ -68,18 +72,36 @@ const formatDate = (dateString) => {
 }
 
 .project-thumbnail {
-  height: 200px;
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%; /* 16:9 */
   overflow: hidden;
+  flex: none;
+}
+
+.project-thumbnail :deep(.n-image) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .project-info {
-  padding: 8px 0;
+  padding: 12px;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .project-title {
   margin: 0 0 8px 0;
   font-size: 18px;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .project-description {
@@ -102,5 +124,6 @@ const formatDate = (dateString) => {
 .project-meta {
   font-size: 12px;
   color: #999;
+  margin-top: auto; /* Push meta to bottom of card */
 }
 </style>
