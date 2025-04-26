@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import mysql.connector
 import uuid
 from datetime import datetime
+from fastapi.staticfiles import StaticFiles
 
 load_dotenv()
 
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
+app.mount("/generated_images", StaticFiles(directory="generated_images"), name="static")
 
 model_id = "amazon.nova-canvas-v1:0"
 
