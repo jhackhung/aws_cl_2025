@@ -45,71 +45,73 @@
 
         <NSpin :show="loading" description="載入中..." size="large">
           <div v-if="filteredImages.length" class="gallery-container">
-            <div class="gallery-grid">
-              <NGrid x-gap="24" y-gap="24" cols="1 s:2 m:3 l:4 xl:5 2xl:6">
-                <NGridItem v-for="image in filteredImages" :key="image.id">
-                  <div class="gallery-item">
-                    <NImage
-                      :src="image.url"
-                      object-fit="cover"
-                      :alt="'設計圖像'"
-                      lazy
-                      class="gallery-image"
-                    />
-                    <div class="image-overlay">
-                      <div class="image-info">
-                        <h3 v-if="image.projectName">
-                          {{ truncateText(image.projectName, 20) }}
-                        </h3>
-                        <div class="image-tags">
-                          <NTag
-                            v-for="tag in image.tags"
-                            :key="tag"
-                            size="small"
-                            :bordered="false"
-                            type="info"
-                          >
-                            {{ tag }}
-                          </NTag>
-                        </div>
-                      </div>
-                      <div class="image-actions">
-                        <NButton
-                          circle
-                          secondary
-                          @click.stop="viewDetail(image)"
-                          title="查看詳情"
+            <div class="custom-grid">
+              <div
+                class="grid-item"
+                v-for="image in filteredImages"
+                :key="image.id"
+              >
+                <div class="gallery-item">
+                  <NImage
+                    :src="image.url"
+                    object-fit="cover"
+                    :alt="'設計圖像'"
+                    lazy
+                    class="gallery-image"
+                  />
+                  <div class="image-overlay">
+                    <div class="image-info">
+                      <h3 v-if="image.projectName">
+                        {{ truncateText(image.projectName, 20) }}
+                      </h3>
+                      <div class="image-tags">
+                        <NTag
+                          v-for="tag in image.tags"
+                          :key="tag"
+                          size="small"
+                          :bordered="false"
+                          type="info"
                         >
-                          <template #icon>
-                            <NIcon><EyeOutlined /></NIcon>
-                          </template>
-                        </NButton>
-                        <NButton
-                          circle
-                          secondary
-                          @click.stop="useAsReference(image)"
-                          title="用作參考"
-                        >
-                          <template #icon>
-                            <NIcon><SyncOutlined /></NIcon>
-                          </template>
-                        </NButton>
-                        <NButton
-                          circle
-                          secondary
-                          type="error"
-                          @click.stop="deleteImage(image.id)"
-                          title="刪除"
-                        >
-                          <template #icon>
-                            <NIcon><DeleteOutlined /></NIcon>
-                          </template>
-                        </NButton>
+                          {{ tag }}
+                        </NTag>
                       </div>
                     </div>
+                    <div class="image-actions">
+                      <NButton
+                        circle
+                        secondary
+                        @click.stop="viewDetail(image)"
+                        title="查看詳情"
+                      >
+                        <template #icon>
+                          <NIcon><EyeOutlined /></NIcon>
+                        </template>
+                      </NButton>
+                      <NButton
+                        circle
+                        secondary
+                        @click.stop="useAsReference(image)"
+                        title="用作參考"
+                      >
+                        <template #icon>
+                          <NIcon><SyncOutlined /></NIcon>
+                        </template>
+                      </NButton>
+                      <NButton
+                        circle
+                        secondary
+                        type="error"
+                        @click.stop="deleteImage(image.id)"
+                        title="刪除"
+                      >
+                        <template #icon>
+                          <NIcon><DeleteOutlined /></NIcon>
+                        </template>
+                      </NButton>
+                    </div>
                   </div>
-                </NGridItem>
-              </NGrid>
+                </div>
+              </div>
             </div>
 
             <div v-if="totalPages > 1" class="pagination-container">
@@ -287,6 +289,17 @@ const projectStore = useProjectStore();
 const imageStore = useImageStore();
 const message = useMessage();
 
+const gridCols = computed(() => {
+  return {
+    xs: 1, // 超小屏幕 (手機) 一行1個
+    s: 2, // 小屏幕 (平板) 一行2個
+    m: 3, // 中等屏幕 一行3個
+    l: 4, // 大屏幕 一行4個
+    xl: 4, // 超大屏幕 一行4個
+    xxl: 4, // 超超大屏幕 一行4個
+  };
+});
+
 // 頁面狀態
 const loading = ref(false);
 const showDetailModal = ref(false);
@@ -350,6 +363,34 @@ onMounted(async () => {
           projectId: "3",
           prompt: "夏季促銷活動海報，明亮的黃色和藍色主題",
           tags: ["海報", "夏季", "促銷"],
+          createdAt: new Date().toISOString(),
+          params: {
+            strength: 70,
+            steps: 25,
+            seed: 345678,
+            size: "768x1280",
+          },
+        },
+        {
+          id: "sample-4",
+          url: "https://picsum.photos/800/600?random=3",
+          projectId: "4",
+          prompt: "夏季促銷活動海報，明亮的黃色和藍色主題",
+          tags: ["香腸", "同性戀", "裡又寬"],
+          createdAt: new Date().toISOString(),
+          params: {
+            strength: 70,
+            steps: 25,
+            seed: 345678,
+            size: "768x1280",
+          },
+        },
+        {
+          id: "sample-5",
+          url: "https://picsum.photos/800/600?random=3",
+          projectId: "5",
+          prompt: "夏季促銷活動海報，明亮的黃色和藍色主題",
+          tags: ["阿志", "洪永婕", "排球"],
           createdAt: new Date().toISOString(),
           params: {
             strength: 70,
@@ -590,6 +631,7 @@ const goToCreateImage = () => {
   padding: 0 24px 24px 24px;
   width: 100%;
   box-sizing: border-box;
+  overflow-y: hidden; /* 阻止垂直滾動 */
 }
 
 .content-wrapper {
@@ -649,11 +691,18 @@ const goToCreateImage = () => {
   width: 200px;
 }
 
-.gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 20px;
+.custom-grid {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 -8px; /* 減少間距，確保一行能夠放下4個項目 */
   width: 100%;
+}
+
+.grid-item {
+  padding: 8px;
+  width: 25%; /* 固定為一行4個 */
+  box-sizing: border-box;
+  display: inline-block;
 }
 
 .gallery-item {
@@ -662,13 +711,9 @@ const goToCreateImage = () => {
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  aspect-ratio: 1/1;
+  aspect-ratio: 1/1; /* 保持正方形 */
   background-color: #f0f0f0;
-}
-
-.gallery-item:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  height: 100%;
 }
 
 .gallery-image {
@@ -754,7 +799,8 @@ const goToCreateImage = () => {
   display: flex;
   justify-content: space-between;
   margin-bottom: 8px;
-  margin-right: 16px;
+  margin-left: 30px;
+  margin-right: 30px;
   padding: 8px 0;
   border-bottom: 1px solid #eee;
 }
@@ -803,63 +849,5 @@ const goToCreateImage = () => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-}
-
-@media (max-width: 768px) {
-  .page-content {
-    padding: 0 16px 16px 16px;
-  }
-
-  .filter-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .search-input {
-    width: 100%;
-  }
-
-  .filter-controls {
-    flex-direction: column;
-    align-items: flex-start;
-    width: 100%;
-    gap: 12px;
-  }
-
-  .project-container,
-  .tags-container {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .filter-select {
-    width: 100%;
-  }
-
-  .gallery-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 12px;
-  }
-
-  .image-info h3 {
-    font-size: 14px;
-  }
-
-  .image-actions {
-    margin-right: 0;
-  }
-
-  .image-preview-container {
-    height: auto;
-  }
-
-  .detail-image {
-    max-height: 300px;
-  }
-
-  .tag-input-area {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }
 </style>
