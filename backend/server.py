@@ -330,18 +330,24 @@ async def save_project(id: str = Form(...),
             tag_values = [(id, tag) for tag in tags]
             cursor.executemany(insert_tags_query, tag_values)
 
-        # Delete existing image associations
-        delete_images_query = "DELETE FROM project_images WHERE project_id = %s"
-        cursor.execute(delete_images_query, (id, ))
+        # Update image project associations
+        update_images_query = """
+        UPDATE images 
+        SET project_id = NULL 
+        WHERE project_id = %s
+        """
+        cursor.execute(update_images_query, (id,))
 
-        # Insert new image associations
         if images:
-            insert_images_query = """
-            INSERT INTO project_images (project_id, image_id)
-            VALUES (%s, %s)
+            # Update images with new project association
+            update_project_images_query = """
+            UPDATE images 
+            SET project_id = %s 
+            WHERE id IN (%s)
             """
-            image_values = [(id, image_id) for image_id in images]
-            cursor.executemany(insert_images_query, image_values)
+            format_strings = ','.join(['%s'] * len(images))
+            cursor.execute(update_project_images_query % format_strings, 
+                         tuple([id] + images))
 
         conn.commit()
         cursor.close()
@@ -456,10 +462,12 @@ async def create_template(
         """
         cursor.execute(copy_tags_query, (template_id, projectId))
 
-        # Copy project images
+        # Copy images with new project_id
         copy_images_query = """
-        INSERT INTO project_images (project_id, image_id)
-        SELECT %s, image_id FROM images WHERE project_id = %s
+        INSERT INTO images (id, project_id, type, seed, prompt, parameters)
+        SELECT UUID(), %s, type, seed, prompt, parameters 
+        FROM images 
+        WHERE project_id = %s
         """
         cursor.execute(copy_images_query, (template_id, projectId))
 
@@ -512,10 +520,10 @@ async def get_project(id: str):
             p.modified_at,
             p.readonly,
             GROUP_CONCAT(DISTINCT pt.tag) as tags,
-            GROUP_CONCAT(DISTINCT pi.image_id) as image_ids
+            GROUP_CONCAT(DISTINCT i.id) as image_ids
         FROM projects p
         LEFT JOIN project_tags pt ON p.id = pt.project_id
-        LEFT JOIN images pi ON p.id = pi.project_id
+        LEFT JOIN images i ON p.id = i.project_id
         WHERE p.id = %s
         GROUP BY p.id, p.name, p.template_id, p.created_at, p.modified_at, p.readonly
         """
@@ -532,10 +540,9 @@ async def get_project(id: str):
             
         # Get associated images with their metadata
         images_query = """
-        SELECT i.id, i.type, i.seed, i.prompt, i.parameters
-        FROM images i
-        INNER JOIN project_images pi ON i.id = pi.image_id
-        WHERE pi.project_id = %s
+        SELECT id, type, seed, prompt, parameters
+        FROM images 
+        WHERE project_id = %s
         """
         cursor.execute(images_query, (id,))
         images = cursor.fetchall()
