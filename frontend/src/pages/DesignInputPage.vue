@@ -219,6 +219,11 @@
       preset="card"
       title="上傳參考圖像"
       class="upload-modal"
+      style="
+        width: 90%;
+        max-width: 600px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      "
     >
       <div class="upload-area">
         <NUpload
@@ -230,7 +235,30 @@
           @change="handleUploadChange"
         >
           <div class="upload-trigger">
-            <NButton>選擇圖像</NButton>
+            <div class="upload-inner">
+              <div class="upload-icon">
+                <svg
+                  width="48"
+                  height="48"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 5V19M5 12H19"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+              <div class="upload-text">
+                <p class="primary-text">點擊或拖曳圖片至此處</p>
+                <p class="secondary-text">支持 JPG, PNG, WEBP 格式</p>
+              </div>
+              <NButton class="select-image-button">選擇圖像</NButton>
+            </div>
           </div>
         </NUpload>
 
@@ -239,7 +267,7 @@
             :src="uploadFileUrl"
             object-fit="contain"
             :alt="'預覽圖像'"
-            style="max-height: 300px"
+            style="max-height: 300px; border-radius: 8px"
           />
         </div>
       </div>
@@ -786,5 +814,106 @@ const startGeneration = () => {
     max-width: 100%;
     height: auto;
   }
+}
+
+/* Add new styles for the enhanced upload modal */
+.upload-modal :deep(.n-card-header__main) {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.upload-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  width: 100%;
+  transition: all 0.3s ease;
+}
+
+.upload-trigger {
+  width: 100%;
+  border: 2px dashed #d9d9d9;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.upload-trigger:hover {
+  border-color: #2080f0;
+  background-color: rgba(32, 128, 240, 0.05);
+}
+
+.upload-icon {
+  color: #909399;
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.upload-text {
+  text-align: center;
+}
+
+.primary-text {
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.secondary-text {
+  font-size: 14px;
+  color: #909399;
+  margin-top: 0;
+}
+
+.select-image-button {
+  margin-top: 8px;
+  padding: 8px 24px;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 6px;
+}
+
+.upload-preview {
+  display: flex;
+  justify-content: center;
+  border-radius: 12px;
+  padding: 8px;
+  background-color: rgba(0, 0, 0, 0.03);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.modal-footer {
+  padding-top: 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+:root.dark .upload-trigger {
+  background-color: rgba(255, 255, 255, 0.03);
+  border-color: #444;
+}
+
+:root.dark .upload-trigger:hover {
+  border-color: #2080f0;
+  background-color: rgba(32, 128, 240, 0.1);
+}
+
+:root.dark .primary-text {
+  color: #e0e0e0;
+}
+
+:root.dark .upload-preview {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+:root.dark .upload-icon {
+  color: #aaa;
+}
+
+:root.dark .modal-footer {
+  border-color: rgba(255, 255, 255, 0.1);
 }
 </style>

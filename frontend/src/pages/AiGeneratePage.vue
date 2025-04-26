@@ -41,33 +41,62 @@
               Generate
             </NButton>
           </div>
-          <div
-            class="selected-images-container"
-            v-if="selectedImageIds.length > 0"
-          >
-            <div class="selected-count" @click="toggleSelectedImagesDropdown">
-              你選擇了 {{ selectedImageIds.length }} 張圖片
+
+          <!-- Images status bars -->
+          <div class="image-status-container">
+            <div
+              class="status-block selected-status-block"
+              v-if="selectedImageIds.length > 0"
+              @click="toggleSelectedImagesDropdown"
+            >
+              你選擇了 {{ selectedImageIds.length }} 張圖片 (
+              選擇加入下一次圖片生成 )
               <NIcon class="dropdown-icon">{{
                 showSelectedImagesDropdown ? "▲" : "▼"
               }}</NIcon>
-            </div>
-            <div
-              class="selected-images-dropdown"
-              v-if="showSelectedImagesDropdown"
-            >
+
               <div
-                v-for="id in selectedImageIds"
-                :key="id"
-                class="selected-image-item"
-                @click="scrollToImage(id)"
+                class="status-dropdown selected-images-dropdown"
+                v-if="showSelectedImagesDropdown"
               >
-                圖片 ID: {{ id.substring(id.length - 6) }}
+                <div
+                  v-for="id in selectedImageIds"
+                  :key="id"
+                  class="selected-image-item"
+                  @click="scrollToImage(id)"
+                >
+                  圖片 ID: {{ id.substring(id.length - 6) }}
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="status-block saved-status-block"
+              v-if="savedImageIds.length > 0"
+              @click="toggleSavedImagesDropdown"
+            >
+              你儲存了 {{ savedImageIds.length }} 張圖片 ( 加入至個人品牌資料庫
+              )
+              <NIcon class="dropdown-icon">{{
+                showSavedImagesDropdown ? "▲" : "▼"
+              }}</NIcon>
+
+              <div
+                class="status-dropdown saved-images-dropdown"
+                v-if="showSavedImagesDropdown"
+              >
+                <div
+                  v-for="id in savedImageIds"
+                  :key="id"
+                  class="saved-image-item"
+                  @click="scrollToImage(id)"
+                >
+                  圖片 ID: {{ id.substring(id.length - 6) }}
+                </div>
               </div>
             </div>
           </div>
-          <div class="saved-count" v-if="savedImageIds.length > 0">
-            你儲存了 {{ savedImageIds.length }} 張圖片
-          </div>
+
           <NTag v-if="style" type="info">{{ style }}</NTag>
         </div>
         <NAlert title="提示" type="info" v-if="generatedImages.length">
@@ -119,21 +148,32 @@
                     >
                       <NIcon size="24" class="check-icon">✓</NIcon>
                     </div>
-                    <div class="image-actions">
+                    <div class="bottom-right-actions">
                       <NButton
                         circle
                         quaternary
                         @click.stop="previewImage(image.url)"
+                        class="action-button"
                       >
                         <template #icon>👁️</template>
                       </NButton>
                       <NButton
                         circle
                         quaternary
-                        @click.stop="downloadImage(image.url, image.id)"
+                        @click.stop="toggleSaveImage(image.id)"
+                        :class="[
+                          'action-button',
+                          { saved: savedImageIds.includes(image.id) },
+                        ]"
                       >
-                        <template #icon>↓</template>
+                        <template #icon>💾</template>
                       </NButton>
+                      <div
+                        class="save-indicator"
+                        v-if="savedImageIds.includes(image.id)"
+                      >
+                        <NIcon size="24" class="save-icon">✓</NIcon>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -290,6 +330,7 @@ selectedImages.value = computed(() => {
 
 // 選中圖片下拉列表控制
 const showSelectedImagesDropdown = ref(false);
+const showSavedImagesDropdown = ref(false);
 const highlightedImageId = ref(null);
 
 // 切換選中圖片下拉列表顯示狀態
@@ -297,15 +338,20 @@ const toggleSelectedImagesDropdown = () => {
   showSelectedImagesDropdown.value = !showSelectedImagesDropdown.value;
 };
 
+const toggleSavedImagesDropdown = () => {
+  showSavedImagesDropdown.value = !showSavedImagesDropdown.value;
+};
+
 // 滾動到指定圖片並高亮顯示
 const scrollToImage = (imageId) => {
   // 關閉下拉列表
   showSelectedImagesDropdown.value = false;
+  showSavedImagesDropdown.value = false;
 
   // 設置高亮圖片ID
   highlightedImageId.value = imageId;
 
-  // 延遲一下再滾動，確保DOM已更新
+  // 延遲一下再滾动，確保DOM已更新
   setTimeout(() => {
     // 查找對應的圖片元素
     const imageElement = document.querySelector(`[data-image-id="${imageId}"]`);
@@ -344,6 +390,15 @@ const toggleImageSelection = (id) => {
     selectedImageIds.value = selectedImageIds.value.filter((i) => i !== id);
   } else {
     selectedImageIds.value.push(id);
+  }
+};
+
+// 切換圖像儲存狀態
+const toggleSaveImage = (id) => {
+  if (savedImageIds.value.includes(id)) {
+    savedImageIds.value = savedImageIds.value.filter((i) => i !== id);
+  } else {
+    savedImageIds.value.push(id);
   }
 };
 
@@ -637,6 +692,25 @@ const optimizePrompt = async () => {
   overflow-y: auto;
 }
 
+.saved-images-container {
+  position: relative;
+}
+
+.saved-images-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  max-width: 240px;
+  background-color: white;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
 .selected-image-item {
   padding: 8px 16px;
   cursor: pointer;
@@ -646,6 +720,17 @@ const optimizePrompt = async () => {
 .selected-image-item:hover {
   background-color: #f5f5f5;
   color: #2080f0;
+}
+
+.saved-image-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.saved-image-item:hover {
+  background-color: #f5f5f5;
+  color: #18a058;
 }
 
 .image-card-container.highlighted {
@@ -672,6 +757,97 @@ const optimizePrompt = async () => {
   text-align: left;
 }
 
+.bottom-right-actions {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.bottom-right-actions .action-button {
+  background-color: rgba(255, 255, 255, 0.8);
+  transition: all 0.2s;
+}
+
+.bottom-right-actions .action-button.saved {
+  background-color: #18a058;
+  color: white;
+}
+
+.bottom-right-actions .action-button:hover {
+  background-color: rgba(255, 255, 255, 1);
+  transform: scale(1.1);
+}
+
+.save-indicator {
+  position: absolute;
+  bottom: 8px;
+  right: 48px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #18a058;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.save-icon {
+  color: white;
+}
+
+/* New styles for horizontal status blocks */
+.image-status-container {
+  display: flex;
+  width: 100%;
+  margin: 12px 0;
+  gap: 12px;
+}
+
+.status-block {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 6px;
+  position: relative;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+}
+
+.selected-status-block {
+  background-color: rgba(32, 128, 240, 0.1);
+  border: 1px solid rgba(32, 128, 240, 0.3);
+  color: #2080f0;
+}
+
+.saved-status-block {
+  background-color: rgba(24, 160, 88, 0.1);
+  border: 1px solid rgba(24, 160, 88, 0.3);
+  color: #18a058;
+}
+
+.status-block:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.status-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background-color: white;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  z-index: 20;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
 @media (max-width: 768px) {
   .page-content {
     padding: 0 16px 16px 16px;
@@ -684,6 +860,10 @@ const optimizePrompt = async () => {
   .image-card-container {
     width: 220px;
     height: 220px;
+  }
+
+  .image-status-container {
+    flex-direction: column;
   }
 }
 </style>
