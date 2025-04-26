@@ -2,88 +2,147 @@
   <div class="gallery-page">
     <NLayoutHeader class="page-header">
       <div class="header-content">
-        <h1>設計畫廊</h1>
-        <div class="filter-actions">
-          <NSelect
-            v-model:value="filterProject"
-            :options="projectOptions"
-            placeholder="選擇專案"
-            clearable
-            class="filter-select"
-          />
-          <TagSelector
-            v-if="availableTags.length"
-            :tags="availableTags"
-            v-model:selected="selectedTags"
-          />
+        <div class="title-section">
+          <h1>設計畫廊</h1>
+          <p class="subtitle">瀏覽您的設計作品</p>
         </div>
+        <NButton type="primary" size="large" @click="goToCreateImage">
+          <template #icon>
+            <div class="button-icon">
+              <NIcon><PlusOutlined /></NIcon>
+            </div>
+          </template>
+          創建新圖像
+        </NButton>
       </div>
     </NLayoutHeader>
 
     <NLayoutContent class="page-content">
-      <NSpin :show="loading">
-        <div v-if="filteredImages.length" class="gallery-grid">
-          <NGrid x-gap="16" y-gap="16" cols="1 s:2 m:3 l:4 xl:5 2xl:6">
-            <NGridItem v-for="image in filteredImages" :key="image.id">
-              <div class="gallery-item">
-                <NImage
-                  :src="image.url"
-                  object-fit="cover"
-                  :alt="'設計圖像'"
-                  lazy
-                  class="gallery-image"
-                />
-                <div class="image-overlay">
-                  <div class="image-info">
-                    <h3 v-if="image.projectName">
-                      {{ truncateText(image.projectName, 20) }}
-                    </h3>
-                    <div class="image-tags">
-                      <NTag
-                        v-for="tag in image.tags"
-                        :key="tag"
-                        size="small"
-                        :bordered="false"
-                        type="info"
-                      >
-                        {{ tag }}
-                      </NTag>
+      <div class="content-wrapper">
+        <div class="filters-section">
+          <div class="filter-header">
+            <h2>圖像列表</h2>
+            <NInput
+              v-model:value="searchQuery"
+              placeholder="搜尋圖像..."
+              clearable
+              class="search-input"
+            >
+              <template #prefix>
+                <NIcon><SearchOutlined /></NIcon>
+              </template>
+            </NInput>
+          </div>
+
+          <div class="filter-controls">
+            <div class="project-container">
+              <span class="filter-label">專案篩選：</span>
+              <NSelect
+                v-model:value="filterProject"
+                :options="projectOptions"
+                placeholder="選擇專案"
+                clearable
+                class="filter-select"
+              />
+            </div>
+
+            <div class="tags-container">
+              <span class="filter-label">標籤篩選：</span>
+              <TagSelector
+                v-if="availableTags.length"
+                :tags="availableTags"
+                v-model:selected="selectedTags"
+              />
+              <span v-else class="no-tags">暫無標籤</span>
+            </div>
+          </div>
+        </div>
+
+        <NSpin :show="loading" description="載入中..." size="large">
+          <div v-if="filteredImages.length" class="gallery-container">
+            <div class="gallery-grid">
+              <NGrid x-gap="24" y-gap="24" cols="1 s:2 m:3 l:4 xl:5 2xl:6">
+                <NGridItem v-for="image in filteredImages" :key="image.id">
+                  <div class="gallery-item">
+                    <NImage
+                      :src="image.url"
+                      object-fit="cover"
+                      :alt="'設計圖像'"
+                      lazy
+                      class="gallery-image"
+                    />
+                    <div class="image-overlay">
+                      <div class="image-info">
+                        <h3 v-if="image.projectName">
+                          {{ truncateText(image.projectName, 20) }}
+                        </h3>
+                        <div class="image-tags">
+                          <NTag
+                            v-for="tag in image.tags"
+                            :key="tag"
+                            size="small"
+                            :bordered="false"
+                            type="info"
+                          >
+                            {{ tag }}
+                          </NTag>
+                        </div>
+                      </div>
+                      <div class="image-actions">
+                        <NButton
+                          circle
+                          secondary
+                          @click.stop="viewDetail(image)"
+                          title="查看詳情"
+                        >
+                          <template #icon>
+                            <NIcon><EyeOutlined /></NIcon>
+                          </template>
+                        </NButton>
+                        <NButton
+                          circle
+                          secondary
+                          @click.stop="useAsReference(image)"
+                          title="用作參考"
+                        >
+                          <template #icon>
+                            <NIcon><SyncOutlined /></NIcon>
+                          </template>
+                        </NButton>
+                        <NButton
+                          circle
+                          secondary
+                          type="error"
+                          @click.stop="deleteImage(image.id)"
+                          title="刪除"
+                        >
+                          <template #icon>
+                            <NIcon><DeleteOutlined /></NIcon>
+                          </template>
+                        </NButton>
+                      </div>
                     </div>
                   </div>
-                  <div class="image-actions">
-                    <NButton
-                      circle
-                      quaternary
-                      @click.stop="viewDetail(image)"
-                      title="查看詳情"
-                    >
-                      <template #icon>👁️</template>
-                    </NButton>
-                    <NButton
-                      circle
-                      quaternary
-                      @click.stop="useAsReference(image)"
-                      title="用作參考"
-                    >
-                      <template #icon>🔄</template>
-                    </NButton>
-                    <NButton
-                      circle
-                      quaternary
-                      type="error"
-                      @click.stop="deleteImage(image.id)"
-                      title="刪除"
-                    >
-                      <template #icon>✕</template>
-                    </NButton>
-                  </div>
-                </div>
-              </div>
-            </NGridItem>
-          </NGrid>
-        </div>
-        <NEmpty v-else description="沒有找到符合條件的圖像" />
-      </NSpin>
+                </NGridItem>
+              </NGrid>
+            </div>
+
+            <div v-if="totalPages > 1" class="pagination-container">
+              <NPagination
+                v-model:page="currentPage"
+                :page-count="totalPages"
+                :page-size="pageSize"
+                :item-count="filteredImages.length"
+                show-size-picker
+                :page-sizes="[12, 24, 36, 60]"
+                @update:page-size="onPageSizeChange"
+              />
+            </div>
+          </div>
+
+          <NEmpty v-else description="沒有找到符合條件的圖像" />
+        </NSpin>
+      </div>
     </NLayoutContent>
 
     <!-- 圖像詳情對話框 -->
@@ -96,12 +155,14 @@
       <div class="image-detail-content" v-if="selectedImage">
         <NGrid cols="1 m:2" x-gap="24" y-gap="24">
           <NGridItem>
-            <NImage
-              :src="selectedImage.url"
-              object-fit="contain"
-              :alt="'選中的圖像'"
-              :width="400"
-            />
+            <div class="image-preview-container">
+              <NImage
+                :src="selectedImage.url"
+                object-fit="contain"
+                :alt="'選中的圖像'"
+                class="detail-image"
+              />
+            </div>
           </NGridItem>
           <NGridItem>
             <div class="image-details">
@@ -157,8 +218,12 @@
                     placeholder="輸入標籤名稱"
                     @keydown.enter.prevent="addTagToImage"
                   />
-                  <NButton @click="addTagToImage">添加</NButton>
-                  <NButton @click="isEditingTags = false">取消</NButton>
+                  <NButton type="primary" size="small" @click="addTagToImage"
+                    >添加</NButton
+                  >
+                  <NButton size="small" @click="isEditingTags = false"
+                    >取消</NButton
+                  >
                 </div>
                 <div v-else class="tags-area">
                   <div class="tags-display">
@@ -172,9 +237,14 @@
                       {{ tag }}
                     </NTag>
                   </div>
-                  <NButton size="small" @click="isEditingTags = true"
-                    >+ 添加標籤</NButton
+                  <NButton
+                    size="small"
+                    class="add-tag-btn"
+                    @click="isEditingTags = true"
                   >
+                    <NIcon class="tag-icon"><PlusOutlined /></NIcon>
+                    添加標籤
+                  </NButton>
                 </div>
               </div>
             </div>
@@ -197,10 +267,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useProjectStore } from "../stores/project";
 import { useImageStore } from "../stores/image";
+import { useMessage } from "naive-ui";
 import {
   NLayout,
   NLayoutHeader,
@@ -215,12 +286,22 @@ import {
   NSelect,
   NTag,
   NInput,
+  NIcon,
+  NPagination,
 } from "naive-ui";
+import {
+  PlusOutlined,
+  SearchOutlined,
+  EyeOutlined,
+  SyncOutlined,
+  DeleteOutlined,
+} from "@vicons/antd";
 import TagSelector from "../components/ui/TagSelector.vue";
 
 const router = useRouter();
 const projectStore = useProjectStore();
 const imageStore = useImageStore();
+const message = useMessage();
 
 // 頁面狀態
 const loading = ref(false);
@@ -230,6 +311,14 @@ const filterProject = ref(null);
 const selectedTags = ref([]);
 const isEditingTags = ref(false);
 const newTagName = ref("");
+const searchQuery = ref("");
+const currentPage = ref(1);
+const pageSize = ref(24);
+
+// 監聽篩選器變化，重置分頁
+watch([filterProject, selectedTags, searchQuery], () => {
+  currentPage.value = 1;
+});
 
 // 初始加載數據
 onMounted(async () => {
@@ -289,6 +378,7 @@ onMounted(async () => {
     }
   } catch (error) {
     console.error("加載畫廊數據失敗:", error);
+    message.error("加載圖像失敗，請稍後再試");
   } finally {
     loading.value = false;
   }
@@ -315,7 +405,7 @@ const availableTags = computed(() => {
 });
 
 // 根據篩選條件過濾圖像
-const filteredImages = computed(() => {
+const allFilteredImages = computed(() => {
   let images = imageStore.generatedImages;
 
   // 添加項目名稱到圖像
@@ -326,6 +416,17 @@ const filteredImages = computed(() => {
       projectName: project?.name,
     };
   });
+
+  // 搜索篩選
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase();
+    images = images.filter(
+      (image) =>
+        image.projectName?.toLowerCase().includes(query) ||
+        image.prompt?.toLowerCase().includes(query) ||
+        image.tags?.some((tag) => tag.toLowerCase().includes(query))
+    );
+  }
 
   // 按項目篩選
   if (filterProject.value) {
@@ -340,6 +441,17 @@ const filteredImages = computed(() => {
   }
 
   return images;
+});
+
+// 分頁
+const totalPages = computed(() => {
+  return Math.ceil(allFilteredImages.value.length / pageSize.value);
+});
+
+const filteredImages = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  const end = start + pageSize.value;
+  return allFilteredImages.value.slice(start, end);
 });
 
 // 截斷文本
@@ -361,6 +473,12 @@ const formatDate = (dateString) => {
   });
 };
 
+// 分頁大小變更處理
+const onPageSizeChange = (size) => {
+  pageSize.value = size;
+  currentPage.value = 1; // 重置到第一頁
+};
+
 // 查看圖像詳情
 const viewDetail = (image) => {
   selectedImage.value = image;
@@ -373,6 +491,7 @@ const useAsReference = (image) => {
 
   // 設置參考圖像
   imageStore.setReferenceImages([image.url]);
+  message.success("已將圖像設為參考");
 
   // 導航到設計輸入頁面
   router.push({
@@ -390,6 +509,7 @@ const deleteImage = async (imageId) => {
   loading.value = true;
   try {
     await imageStore.deleteImage(imageId);
+    message.success("圖像已成功刪除");
 
     // 如果刪除的是當前選中的圖像，關閉詳情對話框
     if (selectedImage.value && selectedImage.value.id === imageId) {
@@ -398,6 +518,7 @@ const deleteImage = async (imageId) => {
     }
   } catch (error) {
     console.error("刪除圖像失敗:", error);
+    message.error("刪除圖像失敗，請稍後再試");
   } finally {
     loading.value = false;
   }
@@ -419,12 +540,14 @@ const addTagToImage = async () => {
 
       // 更新選中的圖像
       selectedImage.value = imageStore.getImageById(selectedImage.value.id);
+      message.success("標籤已添加");
     }
 
     newTagName.value = "";
     isEditingTags.value = false;
   } catch (error) {
     console.error("添加標籤失敗:", error);
+    message.error("添加標籤失敗，請稍後再試");
   }
 };
 
@@ -443,8 +566,10 @@ const removeTagFromImage = async (tag) => {
 
     // 更新選中的圖像
     selectedImage.value = imageStore.getImageById(selectedImage.value.id);
+    message.success("標籤已移除");
   } catch (error) {
     console.error("移除標籤失敗:", error);
+    message.error("移除標籤失敗，請稍後再試");
   }
 };
 
@@ -464,9 +589,9 @@ const goToRevise = (image) => {
   showDetailModal.value = false;
 };
 
-// 返回專案頁面
-const goToProjects = () => {
-  router.push({ name: "project" });
+// 前往創建新圖像頁面
+const goToCreateImage = () => {
+  router.push({ name: "design-input", params: { projectId: "" } });
 };
 </script>
 
@@ -474,6 +599,7 @@ const goToProjects = () => {
 .gallery-page {
   min-height: 100vh;
   width: 100%;
+  background-color: #f5f7fa;
 }
 
 .page-header {
@@ -491,31 +617,107 @@ const goToProjects = () => {
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
   padding: 0 16px;
-  flex-wrap: wrap;
-  gap: 16px;
 }
 
-.filter-actions {
+.title-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.title-section h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+}
+
+.subtitle {
+  margin: 4px 0 0 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.button-icon {
+  margin-right: 6px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.filter-select {
-  min-width: 200px;
 }
 
 .page-content {
-  padding: 24px;
+  padding: 32px 0;
   width: 100%;
-  box-sizing: border-box;
+}
+
+.content-wrapper {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.filters-section {
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.filter-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.search-input {
+  width: 240px;
+}
+
+.filter-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.project-container,
+.tags-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 14px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.filter-select {
+  width: 200px;
+}
+
+.gallery-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .gallery-grid {
-  margin-bottom: 48px;
   width: 100%;
+  background-color: transparent;
 }
 
 .gallery-item {
@@ -575,12 +777,35 @@ const goToProjects = () => {
 
 .image-actions {
   display: flex;
-  gap: 4px;
+  gap: 8px;
+  margin-right: 28px;
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
 }
 
 .image-detail-content {
   max-height: 80vh;
   overflow-y: auto;
+}
+
+.image-preview-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #f0f0f0;
+}
+
+.detail-image {
+  max-width: 100%;
+  max-height: 500px;
+  object-fit: contain;
 }
 
 .image-details {
@@ -593,7 +818,8 @@ const goToProjects = () => {
   display: flex;
   justify-content: space-between;
   margin-bottom: 8px;
-  padding: 4px 0;
+  margin-right: 16px;
+  padding: 8px 0;
   border-bottom: 1px solid #eee;
 }
 
@@ -601,6 +827,7 @@ const goToProjects = () => {
   font-weight: 500;
   margin-right: 12px;
   flex-shrink: 0;
+  color: #666;
 }
 
 .prompt-text {
@@ -626,9 +853,43 @@ const goToProjects = () => {
   margin-bottom: 8px;
 }
 
+.add-tag-btn {
+  display: flex;
+  align-items: center;
+}
+
+.tag-icon {
+  margin-right: 4px;
+}
+
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .filter-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+
+  .filter-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .project-container,
+  .tags-container {
+    width: 100%;
+  }
+
+  .filter-select {
+    width: 100%;
+  }
 }
 </style>
