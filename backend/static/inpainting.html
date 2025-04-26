@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Image Inpainting Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input,
+      textarea,
+      select {
+        width: 100%;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+      button {
+        padding: 10px 20px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      .preview {
+        margin-top: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .preview img {
+        max-width: 200px;
+        max-height: 200px;
+        border: 1px solid #ddd;
+      }
+      .results {
+        margin-top: 20px;
+      }
+      .status {
+        padding: 10px;
+        margin-bottom: 10px;
+        background-color: #f2f2f2;
+      }
+      .result-images {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .result-images img {
+        max-width: 300px;
+        max-height: 300px;
+        border: 1px solid #ddd;
+      }
+      .prompt-section {
+        border: 1px solid #ddd;
+        padding: 15px;
+        border-radius: 5px;
+        background-color: #f9f9f9;
+        margin-bottom: 20px;
+      }
+      .prompt-section h3 {
+        margin-top: 0;
+        color: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Image Inpainting API Tester</h1>
+
+    <div class="container">
+      <div class="prompt-section">
+        <h3>Prompt Settings</h3>
+        <div class="form-group">
+          <label for="text">Main Prompt:</label>
+          <textarea id="text" rows="3" placeholder="Enter your main prompt here...">a cat with a hat</textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="mask_prompt">Mask Prompt (for masked area specifically):</label>
+          <textarea
+            id="mask_prompt"
+            rows="2"
+            placeholder="Enter prompt specific to the masked area..."
+          >a red hat with flowers</textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="negative_prompt">Negative Prompt (optional):</label>
+          <textarea
+            id="negative_prompt"
+            rows="2"
+            placeholder="Enter negative prompt..."
+          >ugly, bad quality</textarea>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="imageId">Base Image ID:</label>
+        <input type="text" id="imageId" placeholder="Enter the base image ID" />
+      </div>
+
+      <div class="form-group">
+        <label for="maskImageFile">Mask Image (Upload):</label>
+        <input type="file" id="maskImageFile" accept="image/*" />
+      </div>
+
+      <div class="form-group">
+        <label>Mask Image Preview:</label>
+        <div class="preview" id="maskPreview"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="batch_count">Number of Images to Generate:</label>
+        <input type="number" id="batch_count" value="1" min="1" max="4" />
+      </div>
+
+      <div class="form-group">
+        <label for="cfg_scale">CFG Scale (1.1-10.0):</label>
+        <input
+          type="number"
+          id="cfg_scale"
+          value="8.0"
+          min="1.0"
+          max="15.0"
+          step="0.5"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="seed">Seed (optional):</label>
+        <input
+          type="text"
+          id="seed"
+          placeholder="Leave blank for random seed"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="width">Width (optional):</label>
+        <input
+          type="number"
+          id="width"
+          placeholder="Will use image width if left blank"
+          min="512"
+          max="1536"
+          step="8"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="height">Height (optional):</label>
+        <input
+          type="number"
+          id="height"
+          placeholder="Will use image height if left blank"
+          min="512"
+          max="1536"
+          step="8"
+        />
+      </div>
+
+      <button onclick="submitInpainting()">Generate Inpainting</button>
+
+      <div class="status" id="status"></div>
+
+      <div class="results">
+        <h2>Results</h2>
+        <div class="result-images" id="result-images"></div>
+      </div>
+    </div>
+
+    <script>
+      const API_URL = "http://localhost:8000";
+      let taskId = null;
+      let checkStatusInterval = null;
+      let maskBase64 = null;
+
+      // Preview mask image when selected
+      document
+        .getElementById("maskImageFile")
+        .addEventListener("change", function (event) {
+          const file = event.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const previewDiv = document.getElementById("maskPreview");
+            previewDiv.innerHTML = "";
+
+            const img = document.createElement("img");
+            img.src = e.target.result;
+            img.alt = "Mask preview";
+            previewDiv.appendChild(img);
+
+            // Store base64 data for submission (remove data:image/xxx;base64, prefix)
+            maskBase64 = e.target.result.split(",")[1];
+          };
+          reader.readAsDataURL(file);
+        });
+
+      // Submit the inpainting request
+      async function submitInpainting() {
+        if (!maskBase64) {
+          alert("Please upload a mask image");
+          return;
+        }
+
+        const statusDiv = document.getElementById("status");
+        statusDiv.innerText = "Submitting request...";
+
+        // Prepare form data
+        const formData = new FormData();
+        formData.append(
+          "batch_count",
+          document.getElementById("batch_count").value
+        );
+        formData.append("text", document.getElementById("text").value);
+        
+        // Add mask_prompt if provided
+        const maskPrompt = document.getElementById("mask_prompt").value.trim();
+        if (maskPrompt) {
+          formData.append("mask_prompt", maskPrompt);
+        }
+
+        // Use base64 for mask image
+        formData.append("mask_image", document.getElementById("maskImageFile").files[0]);
+
+        const imageId = document.getElementById("imageId").value.trim();
+
+        let imgList = [];
+        if (!imageId) {
+          alert("Please enter a base image ID");
+          return;
+        } else {
+          // Split by comma and trim each ID
+          const imgList = imageId
+            .split(",")
+            .map((id) => id.trim())
+            .filter((id) => id !== "");
+          if (imgList.length > 0) {
+            formData.append("imgs", imgList) // Convert to JSON string
+          }
+        }
+
+        const negativePrompt = document.getElementById("negative_prompt").value;
+        if (negativePrompt) {
+          formData.append("negative_prompt", negativePrompt);
+        }
+
+        const cfgScale = document.getElementById("cfg_scale").value;
+        formData.append("cfg_scale", cfgScale);
+
+        const seed = document.getElementById("seed").value;
+        if (seed) {
+          formData.append("seed", seed);
+        }
+
+        const width = document.getElementById("width").value;
+        if (width) {
+          formData.append("width", width);
+        }
+
+        const height = document.getElementById("height").value;
+        if (height) {
+          formData.append("height", height);
+        }
+
+        try {
+          const response = await fetch(`${API_URL}/img/inpainting`, {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await response.json();
+          taskId = data.id;
+
+          statusDiv.innerText = `Request submitted successfully. Task ID: ${taskId}`;
+
+          // Start checking status
+          if (checkStatusInterval) {
+            clearInterval(checkStatusInterval);
+          }
+          checkStatusInterval = setInterval(checkTaskStatus, 2000);
+        } catch (error) {
+          statusDiv.innerText = `Error: ${error.message}`;
+        }
+      }
+
+      // Check the task status
+      async function checkTaskStatus() {
+        if (!taskId) return;
+
+        try {
+          const response = await fetch(`${API_URL}/img/result/${taskId}`);
+          const data = await response.json();
+
+          const statusDiv = document.getElementById("status");
+          statusDiv.innerText = `Status: ${data.status}`;
+
+          if (data.status === "done") {
+            clearInterval(checkStatusInterval);
+            displayResults(data.urls);
+          } else if (data.status === "error") {
+            clearInterval(checkStatusInterval);
+            statusDiv.innerText = `Error: ${data.error}`;
+          }
+        } catch (error) {
+          document.getElementById(
+            "status"
+          ).innerText = `Error checking status: ${error.message}`;
+        }
+      }
+
+      // Display the results
+      function displayResults(paths) {
+        const resultDiv = document.getElementById("result-images");
+        resultDiv.innerHTML = "";
+
+        if (Array.isArray(paths)) {
+          paths.forEach((path) => {
+            const img = document.createElement("img");
+            img.src = path.includes("://") ? path : `${API_URL}${path}`;
+            img.alt = "Generated image";
+            resultDiv.appendChild(img);
+          });
+        } else {
+          console.error("Invalid response format:", paths);
+          document.getElementById("status").innerText =
+            "Error: Unexpected response format";
+        }
+      }
+    </script>
+  </body>
+</html>

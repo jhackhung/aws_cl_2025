@@ -2,7 +2,7 @@ import json
 import traceback
 import random
 import boto3
-from fastapi import FastAPI, UploadFile, Form, HTTPException
+from fastapi import FastAPI, UploadFile, Form, HTTPException, File
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict
 from datetime import datetime
@@ -223,16 +223,16 @@ async def generate_image(
 
 @app.post("/img/inpainting")
 async def inpainting_image(
-        batch_count: int = Form(...),
-        text: str = Form(...),
-        imgs: Optional[List[str]] = Form(None),
-        mask_prompt: Optional[str] = Form(None),
-        mask_image: Optional[UploadFile] = Form(None),
-        negative_prompt: str = Form(...),
-        cfg_scale: float = Form(...),
-        seed: Optional[str] = Form(None),
-        parameters: Optional[Dict] = Form(None),
-):
+                    batch_count: int = Form(...),
+                    text: str = Form(...),
+                    imgs: Optional[List[str]] = Form(None),
+                    mask_prompt: Optional[str] = Form(None),
+                    mask_image: UploadFile = File(...),
+                    negative_prompt: str = Form(...),
+                    cfg_scale: float = Form(...),
+                    seed: Optional[str] = Form(None),
+                    parameters: Optional[Dict] = Form(None),
+                ):
     seed = random.randint(0, 214783647) if seed is None else seed
 
     height = parameters.get("height") if parameters else 1024
@@ -240,9 +240,17 @@ async def inpainting_image(
 
     if parameters:
         for feature_key, feature_value in parameters.items():
-            # Skip height and width since they're used for image dimensions
+        # Skip height and width since they're used for image dimensions
             if feature_key not in ["height", "width"]:
                 text += f" {feature_key}:{feature_value}"
+
+    # Read mask image data if provided
+    mask_image_data = None
+    if mask_image:
+        mask_image_data = await mask_image.read()
+        mask_image_data = base64.b64encode(mask_image_data).decode('utf-8')
+
+    # logger.info("mask_image_data: %s", mask_image_data)
 
     task_id = str(uuid.uuid4())
 
@@ -252,10 +260,11 @@ async def inpainting_image(
         image_tasks[task_id] = task
 
     threading.Thread(target=run_image_inpainting_task,
-                     args=(task_id, batch_count, text, imgs, mask_prompt,
-                           mask_image, negative_prompt, height, width,
-                           cfg_scale, seed),
-                     daemon=True).start()
+             args=(task_id, batch_count, text, imgs, mask_prompt,
+               mask_image_data, negative_prompt, height, width,
+               cfg_scale, seed),
+             daemon=True).start()
+
     return {"id": task_id}
 
 

@@ -58,17 +58,20 @@ def inpaint_images(model_id,
     # Get image dimensions if not specified
 
     if base64_images:
-        image = Image.open(io.BytesIO(base64_images[0]))
+        image_bytes = base64.b64decode(base64_images[0])
+        
+        image = Image.open(io.BytesIO(image_bytes))
         width, height = image.size
     else:
         raise ValueError(
             "Either height/width or input_image_path must be provided.")
 
     # Prepare inpainting parameters
+    # logger.info("base64_images: %s", base64_images)
     inpaint_params = {
         "text": prompt,
         "negativeText": negative_prompt,
-        "image": base64_images
+        "image": base64_images[0]
     }
 
     # Add either mask prompt or mask image (mask image takes precedence)
@@ -86,7 +89,8 @@ def inpaint_images(model_id,
             "numberOfImages": batch_count,
             "height": height,
             "width": width,
-            "cfgScale": cfg_scale
+            "cfgScale": cfg_scale,
+            # "seed": seed,
         }
     })
 
@@ -94,6 +98,7 @@ def inpaint_images(model_id,
     bedrock = boto3.client(
         service_name='bedrock-runtime',
         config=Config(read_timeout=300),
+        region_name='us-east-1'
     )
 
     # Call the model
