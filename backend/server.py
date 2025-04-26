@@ -21,6 +21,7 @@ import asyncio
 import logging
 import base64
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 load_dotenv()
 
@@ -666,7 +667,47 @@ async def get_image_result(taskId: str):
     task_status["urls"]=task_result.get(taskId)
     return task_status
 
+@app.get("/thumb/{projectId}")
+async def get_thumb(projectId: str):
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get first image ID from project
+        query = """
+        SELECT image_id 
+        FROM project_images 
+        WHERE project_id = %s 
+        ORDER BY id ASC 
+        LIMIT 1
+        """
+        
+        cursor.execute(query, (projectId,))
+        result = cursor.fetchone()
+        cursor.close()
+        
+        if not result:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "No images found in project"}
+            )
+            
+        # Reuse get_image_file to return the actual image
+        image_id = result['image_id']
+        return await get_image_file(image_id)
 
+    except mysql.connector.Error as err:
+        logger.error(f"Database error while fetching thumbnail: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        logger.error(f"Server error while fetching thumbnail: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
+        
 @app.get("/img/{id}")
 async def get_image(id: str):
     
@@ -683,13 +724,13 @@ async def get_image(id: str):
         
         # Fetch image data from S3
         # Encode image to base64
-        image_base64 = await getImageDataB64Async(id)
+        # image_base64 = await getImageDataB64Async(id)
         
         # Prepare response
         response = {
             "id": id,
             "projectId": image_metadata['project_id'],
-            "data": image_base64,
+            # "data": image_base64,
             "type": image_metadata['type'],
             "seed": image_metadata.get('seed'),
             "prompt": image_metadata.get('prompt'),
@@ -704,6 +745,60 @@ async def get_image(id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
+@app.get("/img/{imageId}/file")
+async def get_image_file(imageId: str):
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get image metadata first
+        query = "SELECT type FROM images WHERE id = %s"
+        cursor.execute(query, (imageId,))
+        result = cursor.fetchone()
+        cursor.close()
+        
+        if not result:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Image not found"}
+            )
+            
+        # Get the image data from S3
+        content_type = result['type']
+        s3_key = f"images/{imageId}"
+        
+        try:
+            s3_response = s3_client.get_object(Bucket="scottish-leader", Key=s3_key)
+            image_data = s3_response['Body'].read()
+        except Exception as e:
+            logger.error(f"Failed to fetch image from S3: {str(e)}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": f"Failed to fetch image: {str(e)}"}
+            )
+        
+        # Return image file directly
+        return Response(
+            content=image_data,
+            media_type=content_type,
+            headers={
+                "Cache-Control": "max-age=3600",
+                "Content-Disposition": f"inline; filename={imageId}"
+            }
+        )
+
+    except mysql.connector.Error as err:
+        logger.error(f"Database error while fetching image: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        logger.error(f"Server error while fetching image: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
+        
 async def getImageDataB64Async(id: str):
     # Fetch image data from S3
     s3_key = f"images/{id}"
