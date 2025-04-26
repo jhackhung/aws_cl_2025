@@ -2,8 +2,8 @@
   <div class="ai-generate-page">
     <AiGeneratePageHeader
       :loading="loading"
-      :selectedImages="selectedImageIds"
-      :hasSelectedImages="selectedImageIds.length > 0"
+      :selectedImages="savedImageIds"
+      :hasSelectedImages="savedImageIds.length > 0"
       @regenerate="regenerateSelected"
       @save-and-continue="saveAndContinue"
     />
@@ -480,29 +480,29 @@ const saveImages = () => {
 
 // 保存並繼續
 const saveAndContinue = () => {
-  if (selectedImageIds.value.length === 0) {
-    message.warning("請先選擇一張圖片");
+  if (savedImageIds.value.length === 0) {
+    message.warning("請先儲存至少一張圖片");
     return;
   }
 
-  // 獲取選中的第一張圖片
-  const imageId = selectedImageIds.value[0];
-  const selectedImage = generatedImages.value.find((img) => img.id === imageId);
+  // 獲取儲存的第一張圖片
+  const imageId = savedImageIds.value[0];
+  const savedImage = generatedImages.value.find((img) => img.id === imageId);
 
-  if (!selectedImage) {
-    message.error("找不到選中的圖片，請重新選擇");
+  if (!savedImage) {
+    message.error("找不到已儲存的圖片，請重新儲存");
     return;
   }
 
-  // 將選中的圖片保存到 store
-  imageStore.selectImage(selectedImage);
+  // 將儲存的圖片保存到 store
+  imageStore.selectImage(savedImage);
 
   // 導航到設計師修訂頁面
   router.push({
     name: "designer-revision",
     params: {
       projectId: projectId.value !== "temp" ? projectId.value : "temp",
-      imageId: selectedImage.id,
+      imageId: savedImage.id,
     },
   });
 };
