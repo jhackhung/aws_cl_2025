@@ -12,7 +12,27 @@
       <div class="generation-info">
         <div class="prompt-display">
           <h3>提示詞</h3>
-          <p>{{ prompt }}</p>
+          <div class="prompt-input-container">
+            <NInput
+              v-model:value="editablePrompt"
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+              placeholder="輸入您的設計提示詞"
+              @blur="updatePrompt"
+              class="prompt-textarea"
+            />
+            <NButton
+              class="optimize-button"
+              type="primary"
+              @click="optimizePrompt"
+              title="優化提示詞"
+            >
+              <template #icon>
+                <!-- <NIcon><MagicOutlined /></NIcon> -->
+              </template>
+              ★
+            </NButton>
+          </div>
           <NTag v-if="style" type="info">{{ style }}</NTag>
         </div>
         <NAlert title="提示" type="info" v-if="generatedImages.length">
@@ -126,7 +146,9 @@ import {
   NAlert,
   NEmpty,
   NIcon,
+  NInput,
 } from "naive-ui";
+import { BulbOutlined } from "@vicons/antd";
 import AiGeneratePageHeader from "../components/headers/AiGeneratePageHeader.vue";
 
 const route = useRoute();
@@ -140,6 +162,11 @@ const projectId = computed(() => route.params.projectId);
 const showPreviewModal = ref(false);
 const previewImageUrl = ref("");
 const selectedImages = ref([]);
+const editablePrompt = ref("");
+
+const updatePrompt = () => {
+  imageStore.updateGenerationParams({ prompt: editablePrompt.value });
+};
 
 // 獲取生成參數
 const generationParams = computed(() => imageStore.generationParams);
@@ -175,6 +202,9 @@ onMounted(() => {
       .fetchProjectById(projectId.value)
       .finally(() => (loading.value = false));
   }
+
+  // 初始化可編輯提示詞
+  editablePrompt.value = prompt.value;
 
   if (generatedImages.value.length === 0 && !imageStore.loading) {
     regenerateImages();
@@ -251,6 +281,33 @@ const saveAndContinue = () => {
       imageId: selectedImage.id,
     },
   });
+};
+
+// 優化提示詞
+const optimizePrompt = async () => {
+  if (!editablePrompt.value.trim()) {
+    return;
+  }
+
+  try {
+    loading.value = true;
+
+    // 模擬API調用延遲
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // 簡單的優化邏輯示例
+    const optimizedPrompt = `${editablePrompt.value.trim()} + 高質量、專業設計、細節豐富、協調的配色方案、均衡的構圖`;
+
+    // 更新提示詞
+    editablePrompt.value = optimizedPrompt;
+    updatePrompt();
+
+    // 在實際應用中，這裡可以調用後端API進行AI優化
+  } catch (error) {
+    console.error("優化提示詞失敗:", error);
+  } finally {
+    loading.value = false;
+  }
 };
 </script>
 
@@ -379,6 +436,26 @@ const saveAndContinue = () => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.prompt-input-container {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.prompt-textarea {
+  flex-grow: 1;
+  text-align: left;
+}
+
+.optimize-button {
+  height: auto;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  white-space: nowrap;
 }
 
 @media (max-width: 768px) {
