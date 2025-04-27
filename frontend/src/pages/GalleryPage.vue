@@ -7,14 +7,11 @@
         <div class="filters-section">
           <div class="filter-header">
             <h2>圖像列表</h2>
-            <NInput
-              v-model:value="searchQuery"
-              placeholder="搜尋圖像..."
-              clearable
-              class="search-input"
-            >
+            <NInput v-model:value="searchQuery" placeholder="搜尋圖像..." clearable class="search-input">
               <template #prefix>
-                <NIcon><SearchOutlined /></NIcon>
+                <NIcon>
+                  <SearchOutlined />
+                </NIcon>
               </template>
             </NInput>
           </div>
@@ -22,22 +19,13 @@
           <div class="filter-controls">
             <div class="project-container">
               <span class="filter-label">專案篩選：</span>
-              <NSelect
-                v-model:value="filterProject"
-                :options="projectOptions"
-                placeholder="選擇專案"
-                clearable
-                class="filter-select"
-              />
+              <NSelect v-model:value="filterProject" :options="projectOptions" placeholder="選擇專案" clearable
+                class="filter-select" />
             </div>
 
             <div class="tags-container">
               <span class="filter-label">標籤篩選：</span>
-              <TagSelector
-                v-if="availableTags.length"
-                :tags="availableTags"
-                v-model:selected="selectedTags"
-              />
+              <TagSelector v-if="availableTags.length" :tags="availableTags" v-model:selected="selectedTags" />
               <span v-else class="no-tags">暫無標籤</span>
             </div>
           </div>
@@ -46,66 +34,40 @@
         <NSpin :show="loading" description="載入中..." size="large">
           <div v-if="filteredImages.length" class="gallery-container">
             <div class="custom-grid">
-              <div
-                class="grid-item"
-                v-for="image in filteredImages"
-                :key="image.id"
-              >
+              <div class="grid-item" v-for="image in filteredImages" :key="image.id">
                 <div class="gallery-item">
-                  <NImage
-                    :src="image.url"
-                    object-fit="cover"
-                    :alt="'設計圖像'"
-                    lazy
-                    class="gallery-image"
-                  />
+                  <NImage :src="image.url" object-fit="cover" :alt="'設計圖像'" lazy class="gallery-image" />
                   <div class="image-overlay">
                     <div class="image-info">
                       <h3 v-if="image.projectName">
                         {{ truncateText(image.projectName, 20) }}
                       </h3>
                       <div class="image-tags">
-                        <NTag
-                          v-for="tag in image.tags"
-                          :key="tag"
-                          size="small"
-                          :bordered="false"
-                          type="info"
-                        >
+                        <NTag v-for="tag in image.tags" :key="tag" size="small" :bordered="false" type="info">
                           {{ tag }}
                         </NTag>
                       </div>
                     </div>
                     <div class="image-actions">
-                      <NButton
-                        circle
-                        secondary
-                        @click.stop="viewDetail(image)"
-                        title="查看詳情"
-                      >
+                      <NButton circle secondary @click.stop="viewDetail(image)" title="查看詳情">
                         <template #icon>
-                          <NIcon><EyeOutlined /></NIcon>
+                          <NIcon>
+                            <EyeOutlined />
+                          </NIcon>
                         </template>
                       </NButton>
-                      <NButton
-                        circle
-                        secondary
-                        @click.stop="useAsReference(image)"
-                        title="用作參考"
-                      >
+                      <NButton circle secondary @click.stop="useAsReference(image)" title="用作參考">
                         <template #icon>
-                          <NIcon><SyncOutlined /></NIcon>
+                          <NIcon>
+                            <SyncOutlined />
+                          </NIcon>
                         </template>
                       </NButton>
-                      <NButton
-                        circle
-                        secondary
-                        type="error"
-                        @click.stop="deleteImage(image.id)"
-                        title="刪除"
-                      >
+                      <NButton circle secondary type="error" @click.stop="deleteImage(image.id)" title="刪除">
                         <template #icon>
-                          <NIcon><DeleteOutlined /></NIcon>
+                          <NIcon>
+                            <DeleteOutlined />
+                          </NIcon>
                         </template>
                       </NButton>
                     </div>
@@ -115,15 +77,9 @@
             </div>
 
             <div v-if="totalPages > 1" class="pagination-container">
-              <NPagination
-                v-model:page="currentPage"
-                :page-count="totalPages"
-                :page-size="pageSize"
-                :item-count="filteredImages.length"
-                show-size-picker
-                :page-sizes="[12, 24, 36, 60]"
-                @update:page-size="onPageSizeChange"
-              />
+              <NPagination v-model:page="currentPage" :page-count="totalPages" :page-size="pageSize"
+                :item-count="filteredImages.length" show-size-picker :page-sizes="[12, 24, 36, 60]"
+                @update:page-size="onPageSizeChange" />
             </div>
           </div>
 
@@ -133,22 +89,12 @@
     </NLayoutContent>
 
     <!-- 圖像詳情對話框 -->
-    <NModal
-      v-model:show="showDetailModal"
-      preset="card"
-      title="圖像詳情"
-      style="width: 90%; max-width: 1200px"
-    >
+    <NModal v-model:show="showDetailModal" preset="card" title="圖像詳情" style="width: 90%; max-width: 1200px">
       <div class="image-detail-content" v-if="selectedImage">
         <NGrid cols="1 m:2" x-gap="24" y-gap="24">
           <NGridItem>
             <div class="image-preview-container">
-              <NImage
-                :src="selectedImage.url"
-                object-fit="contain"
-                :alt="'選中的圖像'"
-                class="detail-image"
-              />
+              <NImage :src="selectedImage.url" object-fit="contain" :alt="'選中的圖像'" class="detail-image" />
             </div>
           </NGridItem>
           <NGridItem>
@@ -200,36 +146,21 @@
               <div class="image-tags-section">
                 <h3>標籤</h3>
                 <div v-if="isEditingTags" class="tag-input-area">
-                  <NInput
-                    v-model:value="newTagName"
-                    placeholder="輸入標籤名稱"
-                    @keydown.enter.prevent="addTagToImage"
-                  />
-                  <NButton type="primary" size="small" @click="addTagToImage"
-                    >添加</NButton
-                  >
-                  <NButton size="small" @click="isEditingTags = false"
-                    >取消</NButton
-                  >
+                  <NInput v-model:value="newTagName" placeholder="輸入標籤名稱" @keydown.enter.prevent="addTagToImage" />
+                  <NButton type="primary" size="small" @click="addTagToImage">添加</NButton>
+                  <NButton size="small" @click="isEditingTags = false">取消</NButton>
                 </div>
                 <div v-else class="tags-area">
                   <div class="tags-display">
-                    <NTag
-                      v-for="tag in selectedImage.tags"
-                      :key="tag"
-                      type="info"
-                      closable
-                      @close="removeTagFromImage(tag)"
-                    >
+                    <NTag v-for="tag in selectedImage.tags" :key="tag" type="info" closable
+                      @close="removeTagFromImage(tag)">
                       {{ tag }}
                     </NTag>
                   </div>
-                  <NButton
-                    size="small"
-                    class="add-tag-btn"
-                    @click="isEditingTags = true"
-                  >
-                    <NIcon class="tag-icon"><PlusOutlined /></NIcon>
+                  <NButton size="small" class="add-tag-btn" @click="isEditingTags = true">
+                    <NIcon class="tag-icon">
+                      <PlusOutlined />
+                    </NIcon>
                     添加標籤
                   </NButton>
                 </div>
@@ -241,12 +172,8 @@
       <template #footer>
         <div class="modal-footer">
           <NButton @click="showDetailModal = false">關閉</NButton>
-          <NButton type="primary" @click="useAsReference(selectedImage)"
-            >用作參考圖像</NButton
-          >
-          <NButton type="primary" @click="goToRevise(selectedImage)"
-            >編輯圖像</NButton
-          >
+          <NButton type="primary" @click="useAsReference(selectedImage)">用作參考圖像</NButton>
+          <NButton type="primary" @click="goToRevise(selectedImage)">編輯圖像</NButton>
         </div>
       </template>
     </NModal>
@@ -255,7 +182,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import { useProjectStore } from "../stores/project";
 import { useImageStore } from "../stores/image";
 import { useMessage } from "naive-ui";
@@ -285,6 +212,7 @@ import TagSelector from "../components/ui/TagSelector.vue";
 import GalleryPageHeader from "../components/headers/GalleryPageHeader.vue";
 
 const router = useRouter();
+const route = useRoute();
 const projectStore = useProjectStore();
 const imageStore = useImageStore();
 const message = useMessage();
@@ -319,93 +247,14 @@ watch([filterProject, selectedTags, searchQuery], () => {
 
 // 初始加載數據
 onMounted(async () => {
-  loading.value = true;
   try {
-    // 加載項目
-    await projectStore.fetchProjects();
-
-    // 加載所有圖像 (在實際應用中可能需要分頁)
-    // 為了演示，這裡我們使用已生成的圖像
-    if (imageStore.generatedImages.length === 0) {
-      // 模擬一些圖像數據
-      imageStore.generatedImages = [
-        {
-          id: "sample-1",
-          url: "https://picsum.photos/800/600?random=1",
-          projectId: "1",
-          prompt: "現代風格的智能手錶設計，藍色表帶，金屬邊框",
-          tags: ["手錶", "科技", "藍色"],
-          createdAt: new Date().toISOString(),
-          params: {
-            strength: 75,
-            steps: 30,
-            seed: 123456,
-            size: "1024x1024",
-          },
-        },
-        {
-          id: "sample-2",
-          url: "https://picsum.photos/800/600?random=2",
-          projectId: "2",
-          prompt: "未來感十足的客廳傢俱設計，白色和木質風格",
-          tags: ["傢俱", "客廳", "未來"],
-          createdAt: new Date().toISOString(),
-          params: {
-            strength: 80,
-            steps: 35,
-            seed: 234567,
-            size: "1280x768",
-          },
-        },
-        {
-          id: "sample-3",
-          url: "https://picsum.photos/800/600?random=3",
-          projectId: "3",
-          prompt: "夏季促銷活動海報，明亮的黃色和藍色主題",
-          tags: ["海報", "夏季", "促銷"],
-          createdAt: new Date().toISOString(),
-          params: {
-            strength: 70,
-            steps: 25,
-            seed: 345678,
-            size: "768x1280",
-          },
-        },
-        {
-          id: "sample-4",
-          url: "https://picsum.photos/800/600?random=3",
-          projectId: "4",
-          prompt: "夏季促銷活動海報，明亮的黃色和藍色主題",
-          tags: ["香腸", "同性戀", "裡又寬"],
-          createdAt: new Date().toISOString(),
-          params: {
-            strength: 70,
-            steps: 25,
-            seed: 345678,
-            size: "768x1280",
-          },
-        },
-        {
-          id: "sample-5",
-          url: "https://picsum.photos/800/600?random=3",
-          projectId: "5",
-          prompt: "夏季促銷活動海報，明亮的黃色和藍色主題",
-          tags: ["阿志", "洪永婕", "排球"],
-          createdAt: new Date().toISOString(),
-          params: {
-            strength: 70,
-            steps: 25,
-            seed: 345678,
-            size: "768x1280",
-          },
-        },
-      ];
-    }
+    await Promise.all([
+      projectStore.fetchProjects(),
+      fetchImages()
+    ]);
   } catch (error) {
-    console.error("加載畫廊數據失敗:", error);
-    message.error("加載圖像失敗，請稍後再試");
-  } finally {
-    loading.value = false;
+    console.error('載入數據失敗:', error);
+    message.error('載入數據失敗，請稍後再試');
   }
 });
 
@@ -431,7 +280,7 @@ const availableTags = computed(() => {
 
 // 根據篩選條件過濾圖像
 const allFilteredImages = computed(() => {
-  let images = imageStore.generatedImages;
+  let images = imageStore.images;
 
   // 添加項目名稱到圖像
   images = images.map((image) => {
@@ -441,29 +290,6 @@ const allFilteredImages = computed(() => {
       projectName: project?.name,
     };
   });
-
-  // 搜索篩選
-  if (searchQuery.value.trim()) {
-    const query = searchQuery.value.toLowerCase();
-    images = images.filter(
-      (image) =>
-        image.projectName?.toLowerCase().includes(query) ||
-        image.prompt?.toLowerCase().includes(query) ||
-        image.tags?.some((tag) => tag.toLowerCase().includes(query))
-    );
-  }
-
-  // 按項目篩選
-  if (filterProject.value) {
-    images = images.filter((image) => image.projectId === filterProject.value);
-  }
-
-  // 按標籤篩選
-  if (selectedTags.value.length > 0) {
-    images = images.filter((image) =>
-      selectedTags.value.every((tag) => image.tags?.includes(tag))
-    );
-  }
 
   return images;
 });
@@ -527,23 +353,71 @@ const useAsReference = (image) => {
 
 // 刪除圖像
 const deleteImage = async (imageId) => {
-  if (!imageId) return;
-
-  if (!confirm("確定要刪除這張圖像嗎？此操作無法復原。")) return;
+  if (!confirm('確定要刪除這張圖像嗎？此操作無法復原。')) return;
 
   loading.value = true;
   try {
     await imageStore.deleteImage(imageId);
-    message.success("圖像已成功刪除");
+    message.success('圖像已成功刪除');
 
-    // 如果刪除的是當前選中的圖像，關閉詳情對話框
-    if (selectedImage.value && selectedImage.value.id === imageId) {
+    // If deleted image is currently selected, close detail modal
+    if (selectedImage.value?.id === imageId) {
       showDetailModal.value = false;
       selectedImage.value = null;
     }
+
+    // Refresh images list
+    // This assumes you have a method to refresh the images list
+    await fetchImages();
   } catch (error) {
-    console.error("刪除圖像失敗:", error);
-    message.error("刪除圖像失敗，請稍後再試");
+    console.error('刪除圖像失敗:', error);
+    message.error('刪除圖像失敗，請稍後再試');
+  } finally {
+    loading.value = false;
+  }
+};
+console.log(route.params.projectId);
+// Add method to fetch images
+const fetchImages = async () => {
+  loading.value = true;
+  try {
+    // Get project data including image IDs from /project/{id}
+    const projectId = route.params.projectId;
+    const response = await fetch(`https://ec2.sausagee.party/project/${projectId}`);
+
+    console.log(`https://ec2.sausagee.party/project/${projectId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch project: ${response.status}`);
+    }
+
+    const projectData = await response.json();
+    const images = await Promise.all(
+      projectData.images.map(async (image) => {
+        // Get image URL
+        const imageUrl = `https://ec2.sausagee.party/img/${image.id}/file`;
+
+        console.log(imageUrl);
+        return {
+          id: image.id,
+          url: imageUrl,
+          projectId: projectId,
+          projectName: projectData.name,
+          type: image.type,
+          seed: image.seed,
+          prompt: image.prompt,
+          parameters: image.parameters,
+          tags: [], // Add tags if available in your data
+          createdAt: projectData.created
+        };
+      })
+    );
+
+    // Update images data
+    imageStore.images = images;
+
+  } catch (error) {
+    console.error('載入圖像失敗:', error);
+    message.error('載入圖像失敗，請稍後再試');
   } finally {
     loading.value = false;
   }
@@ -631,7 +505,8 @@ const goToCreateImage = () => {
   padding: 0 24px 24px 24px;
   width: 100%;
   box-sizing: border-box;
-  overflow-y: hidden; /* 阻止垂直滾動 */
+  overflow-y: hidden;
+  /* 阻止垂直滾動 */
 }
 
 .content-wrapper {
@@ -694,13 +569,15 @@ const goToCreateImage = () => {
 .custom-grid {
   display: flex;
   flex-wrap: wrap;
-  margin: 0 -8px; /* 減少間距，確保一行能夠放下4個項目 */
+  margin: 0 -8px;
+  /* 減少間距，確保一行能夠放下4個項目 */
   width: 100%;
 }
 
 .grid-item {
   padding: 8px;
-  width: 25%; /* 固定為一行4個 */
+  width: 25%;
+  /* 固定為一行4個 */
   box-sizing: border-box;
   display: inline-block;
 }
@@ -711,7 +588,8 @@ const goToCreateImage = () => {
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  aspect-ratio: 1/1; /* 保持正方形 */
+  aspect-ratio: 1/1;
+  /* 保持正方形 */
   background-color: #f0f0f0;
   height: 100%;
 }

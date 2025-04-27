@@ -336,6 +336,75 @@ export const useImageStore = defineStore("image", () => {
     // 不需要修改任何狀態，只需作為一個事件處理函數
   }
 
+  // Fetch image metadata
+  async function fetchImageMetadata(imageId) {
+    loading.value = true;
+    try {
+      const response = await axios.get(`https://ec2.sausagee.party/img/${imageId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching image metadata:', error);
+      throw error;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // Fetch image file
+  async function fetchImageFile(imageId) {
+    loading.value = true;
+    try {
+      const response = await axios.get(
+        `https://ec2.sausagee.party/img/${imageId}/file`,
+        { responseType: 'blob' }
+      );
+      return URL.createObjectURL(response.data);
+    } catch (error) {
+      console.error('Error fetching image file:', error);
+      throw error;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // Delete image
+  async function deleteImage(imageId) {
+    loading.value = true;
+    try {
+      const formData = new FormData();
+      formData.append('id', imageId);
+
+      await axios.post('https://ec2.sausagee.party/img/delete', formData);
+
+      // Remove image from local state if it exists
+      generatedImages.value = generatedImages.value.filter(img => img.id !== imageId);
+
+    } catch (error) {
+      console.error('Error deleting image:', error);
+      throw error;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // Helper method to get both metadata and file URL
+  async function getFullImageData(imageId) {
+    try {
+      const [metadata, fileUrl] = await Promise.all([
+        fetchImageMetadata(imageId),
+        fetchImageFile(imageId)
+      ]);
+
+      return {
+        ...metadata,
+        url: fileUrl
+      };
+    } catch (error) {
+      console.error('Error fetching full image data:', error);
+      throw error;
+    }
+  }
+
   return {
     // State
     generatedImages,
@@ -358,5 +427,8 @@ export const useImageStore = defineStore("image", () => {
     saveImage,
     deleteImage,
     selectImage,
+    fetchImageMetadata,
+    fetchImageFile,
+    getFullImageData,
   };
 });
