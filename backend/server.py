@@ -269,7 +269,6 @@ async def inpainting_image(
 
     return {"id": task_id}
 
-
 @app.post("/project/create")
 async def create_project(name: str = Form(...),
                         description: Optional[str] = Form(None),
@@ -301,68 +300,123 @@ async def create_project(name: str = Form(...),
         return {"error": f"Server error: {str(e)}"}, 500
 
 
-@app.post("/project/save")
-async def save_project(id: str = Form(...),
-                      name: str = Form(...),
-                      description: Optional[str] = Form(None),
-                      tags: List[str] = Form(...),
-                      images: List[str] = Form(...)):
+@app.post("/project/delete")
+async def delete_project(id: str = Form(...)):
     try:
-        cursor = conn.cursor()
-        current_time = datetime.now()
-
-        # Update project details
-        update_project_query = """
-        UPDATE projects 
-        SET name = %s, description = %s, modified_at = %s
-        WHERE id = %s
-        """
-        cursor.execute(update_project_query, (name, description, current_time, id))
-
-        # Delete existing tags for the project
-        delete_tags_query = "DELETE FROM project_tags WHERE project_id = %s"
-        cursor.execute(delete_tags_query, (id, ))
-
-        # Insert new tags
-        if tags:
-            insert_tags_query = """
-            INSERT INTO project_tags (project_id, tag)
-            VALUES (%s, %s)
-            """
-            tag_values = [(id, tag) for tag in tags]
-            cursor.executemany(insert_tags_query, tag_values)
-
-        # Update image project associations
+        cursor = conn.cursor(dictionary=True)
+        
+        # First verify the project exists and check if it's readonly
+        verify_query = "SELECT readonly FROM projects WHERE id = %s"
+        cursor.execute(verify_query, (id,))
+        project = cursor.fetchone()
+        
+        if not project:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Project not found"}
+            )
+            
+        if project["readonly"]:
+            return JSONResponse(
+                status_code=403,
+                content={"error": "Cannot delete readonly project/template"}
+            )
+            
+        # Start deletion process
+        # 1. Clear project association from images
         update_images_query = """
         UPDATE images 
         SET project_id = NULL 
         WHERE project_id = %s
         """
         cursor.execute(update_images_query, (id,))
-
-        if images:
-            # Update images with new project association
-            update_project_images_query = """
-            UPDATE images 
-            SET project_id = %s 
-            WHERE id IN (%s)
-            """
-            format_strings = ','.join(['%s'] * len(images))
-            cursor.execute(update_project_images_query % format_strings, 
-                         tuple([id] + images))
-
+        
+        # 2. Delete project tags
+        delete_tags_query = "DELETE FROM project_tags WHERE project_id = %s"
+        cursor.execute(delete_tags_query, (id,))
+        
+        # 3. Delete project record
+        delete_project_query = "DELETE FROM projects WHERE id = %s"
+        cursor.execute(delete_project_query, (id,))
+        
         conn.commit()
         cursor.close()
-
-        return {"message": "Project saved successfully", "id": id}
+        
+        return {
+            "message": "Project deleted successfully",
+            "id": id
+        }
 
     except mysql.connector.Error as err:
         conn.rollback()
-        return {"error": f"Database error: {str(err)}"}, 500
+        logger.error(f"Database error while deleting project: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
     except Exception as e:
         conn.rollback()
-        return {"error": f"Server error: {str(e)}"}, 500
+        logger.error(f"Server error while deleting project: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
 
+@app.post("/img/delete")
+async def delete_image(id: str = Form(...)):
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # First verify the image exists and get its metadata
+        select_query = "SELECT project_id FROM images WHERE id = %s"
+        cursor.execute(select_query, (id,))
+        image = cursor.fetchone()
+        
+        if not image:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Image not found"}
+            )
+            
+        # Delete from S3
+        try:
+            s3_key = f"images/{id}"
+            s3_client.delete_object(
+                Bucket="scottish-leader",
+                Key=s3_key
+            )
+        except Exception as e:
+            logger.error(f"S3 deletion failed: {str(e)}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": f"Failed to delete image from storage: {str(e)}"}
+            )
+
+        # Delete from database
+        delete_query = "DELETE FROM images WHERE id = %s"
+        cursor.execute(delete_query, (id,))
+        conn.commit()
+        cursor.close()
+        
+        return {
+            "message": "Image deleted successfully",
+            "id": id
+        }
+
+    except mysql.connector.Error as err:
+        conn.rollback()
+        logger.error(f"Database error while deleting image: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Server error while deleting image: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
 
 @app.post("/img/save")
 async def save_image(
