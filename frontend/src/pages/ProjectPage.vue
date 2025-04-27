@@ -20,55 +20,41 @@
     </NLayoutHeader>
 
     <div class="template-showcase" v-if="templates.length">
-      <div class="showcase-header">
-        <h2>推薦模板</h2>
-        <NButton text @click="showAllTemplates = !showAllTemplates">
-          {{ showAllTemplates ? "收起" : "查看全部" }}
-          <template #icon>
-            <NIcon>
-              <component
-                :is="showAllTemplates ? 'UpOutlined' : 'DownOutlined'"
-              ></component>
-            </NIcon>
-          </template>
-        </NButton>
-      </div>
+      <NSpin :show="loading">
+        <div class="showcase-header">
+          <h2>推薦模板</h2>
+          <NButton text @click="showAllTemplates = !showAllTemplates">
+            {{ showAllTemplates ? "收起" : "查看全部" }}
+            <template #icon>
+              <NIcon>
+                <component :is="showAllTemplates ? 'UpOutlined' : 'DownOutlined'"></component>
+              </NIcon>
+            </template>
+          </NButton>
+        </div>
 
-      <div class="template-carousel">
-        <div
-          v-for="template in displayedTemplates"
-          :key="template.id"
-          class="template-item"
-          @click="selectTemplateAndCreate(template)"
-        >
-          <div class="template-preview">
-            <NImage
-              :src="template.thumbnail"
-              object-fit="cover"
-              :preview-disabled="true"
-              fallback-src="/placeholder-image.png"
-              :alt="template.name"
-            />
-            <div class="template-quick-actions">
-              <NButton type="primary" size="small">快速使用</NButton>
+        <div class="template-carousel">
+          <div v-for="template in displayedTemplates" :key="template.id" class="template-item"
+            @click="selectTemplateAndCreate(template)">
+            <div class="template-preview">
+              <NImage :src="template.thumbnail" object-fit="cover" :preview-disabled="true"
+                fallback-src="/placeholder-image.png" :alt="template.name" />
+              <div class="template-quick-actions">
+                <NButton type="primary" size="small">快速使用</NButton>
+              </div>
             </div>
-          </div>
-          <div class="template-meta">
-            <h3>{{ template.name }}</h3>
-            <div class="template-tags">
-              <NTag
-                v-for="(tag, index) in getTemplateTags(template)"
-                :key="index"
-                size="small"
-                :bordered="false"
-                :color="{ color: getTagColor(tag) }"
-              >
-                {{ tag }}
-              </NTag>
+            <div class="template-meta">
+              <h3>{{ template.name }}</h3>
+              <div class="template-tags">
+                <NTag v-for="(tag, index) in template.tags" :key="index" size="small" :bordered="false"
+                  :color="{ color: getTagColor(tag) }">
+                  {{ tag }}
+                </NTag>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </NSpin>
     </div>
 
     <NLayoutContent class="page-content">
@@ -76,12 +62,7 @@
         <div class="filters-section">
           <div class="filter-header">
             <h2>專案列表</h2>
-            <NInput
-              v-model:value="searchQuery"
-              placeholder="搜尋專案..."
-              clearable
-              class="search-input"
-            >
+            <NInput v-model:value="searchQuery" placeholder="搜尋專案..." clearable class="search-input">
               <template #prefix>
                 <NIcon>
                   <SearchOutlined />
@@ -93,22 +74,13 @@
           <div class="filter-controls">
             <div class="tags-container">
               <span class="filter-label">標籤篩選：</span>
-              <TagSelector
-                v-if="availableTags.length"
-                :tags="availableTags"
-                v-model:selected="selectedTags"
-              />
+              <TagSelector v-if="availableTags.length" :tags="availableTags" v-model:selected="selectedTags" />
               <span v-else class="no-tags">暫無標籤</span>
             </div>
 
             <div class="sort-container">
               <span class="filter-label">排序方式：</span>
-              <NSelect
-                v-model:value="sortOption"
-                :options="sortOptions"
-                size="medium"
-                class="sort-select"
-              />
+              <NSelect v-model:value="sortOption" :options="sortOptions" size="medium" class="sort-select" />
             </div>
           </div>
         </div>
@@ -124,24 +96,13 @@
             </div>
 
             <div v-if="totalPages > 1" class="pagination-container">
-              <NPagination
-                v-model:page="currentPage"
-                :page-count="totalPages"
-                :page-size="pageSize"
-                :item-count="filteredProjects.length"
-                show-size-picker
-                :page-sizes="[8, 12, 16, 24]"
-                @update:page-size="onPageSizeChange"
-              />
+              <NPagination v-model:page="currentPage" :page-count="totalPages" :page-size="pageSize"
+                :item-count="filteredProjects.length" show-size-picker :page-sizes="[8, 12, 16, 24]"
+                @update:page-size="onPageSizeChange" />
             </div>
           </div>
 
-          <NResult
-            v-else-if="!loading"
-            status="info"
-            title="沒有找到專案"
-            description="還沒有創建任何專案，立即開始創建吧！"
-          >
+          <NResult v-else-if="!loading" status="info" title="沒有找到專案" description="還沒有創建任何專案，立即開始創建吧！">
             <template #footer>
               <NButton type="primary" @click="showCreateModal = true">
                 創建第一個專案
@@ -194,44 +155,41 @@
               <div>
                 <NRadioGroup v-model:value="selectedTemplate" class="template-radio-group">
                   <NGrid x-gap="16" y-gap="16" cols="1 s:2 m:3" responsive="screen">
-                  <NGridItem v-for="template in templates" :key="template.id">
-                    <div class="template-card" :class="{ 'selected-template': selectedTemplate === template.id }"
-                    @click="selectedTemplate = template.id">
-                    <div class="template-image">
-                      <NImage :src="template.thumbnail" object-fit="cover" :preview-disabled="true"
-                      fallback-src="/placeholder-image.png" :alt="template.name" />
-                      <div class="template-overlay">
-                        <div
-                          class="template-check"
-                          v-if="selectedTemplate === template.id"
-                        >
-                          <NIcon size="24">
-                            <CheckCircleFilled />
-                          </NIcon>
+                    <NGridItem v-for="template in templates" :key="template.id">
+                      <div class="template-card" :class="{ 'selected-template': selectedTemplate === template.id }"
+                        @click="selectedTemplate = template.id">
+                        <div class="template-image">
+                          <NImage :src="template.thumbnail" object-fit="cover" :preview-disabled="true"
+                            fallback-src="/placeholder-image.png" :alt="template.name" />
+                          <div class="template-overlay">
+                            <div class="template-check" v-if="selectedTemplate === template.id">
+                              <NIcon size="24">
+                                <CheckCircleFilled />
+                              </NIcon>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="template-info">
+                          <h3 class="template-title">{{ template.name }}</h3>
+                          <div class="template-tags">
+                            <NTag v-for="(tag, index) in getTemplateTags(template)" :key="index" size="small"
+                              :bordered="false" :color="{ color: getTagColor(tag) }">
+                              {{ tag }}
+                            </NTag>
+                          </div>
+                          <p class="template-description">{{ template.description }}</p>
                         </div>
                       </div>
-                    </div>
-                    <div class="template-info">
-                      <h3 class="template-title">{{ template.name }}</h3>
-                      <div class="template-tags">
-                        <NTag v-for="(tag, index) in getTemplateTags(template)" :key="index" size="small"
-                        :bordered="false" :color="{ color: getTagColor(tag) }">
-                        {{ tag }}
-                      </NTag>
-                      </div>
-                      <p class="template-description">{{ template.description }}</p>
-                    </div>
-                  </div>
-                </NGridItem>
-              </NGrid>
-            </NRadioGroup>
-          </div>
-        </div>
-        </NFormItem>
-      </NForm>
-    </div>
-    
-    <template #footer>
+                    </NGridItem>
+                  </NGrid>
+                </NRadioGroup>
+              </div>
+            </div>
+          </NFormItem>
+        </NForm>
+      </div>
+
+      <template #footer>
         <div class="modal-footer">
           <NButton @click="showCreateModal = false">取消</NButton>
           <NButton type="primary" :disabled="!newProject.name" :loading="creatingProject" @click="createProject">
@@ -391,7 +349,7 @@ const createProject = async () => {
     const data = await response.json();
 
     // 更新專案列表
-    await projectStore.fetchProjects();
+    await fetchProjects();
 
     // 顯示成功消息
     message.success("專案創建成功");
@@ -423,14 +381,14 @@ const createProject = async () => {
 // 計算所有可用的標籤
 const availableTags = computed(() => {
   const tagsSet = new Set();
-  projectStore.projects.forEach((project) => {
+  projects.value.forEach((project) => {
     project.tags?.forEach((tag) => tagsSet.add(tag));
   });
   return Array.from(tagsSet);
 });
 
 // 獲取專案列表
-const projects = computed(() => projectStore.projects || []);
+const projects = ref([]);
 
 // 基於標籤和搜索篩選專案
 const filteredProjects = computed(() => {
@@ -482,17 +440,103 @@ const displayedProjects = computed(() => {
 });
 
 // 獲取模板列表
-const templates = computed(() => projectStore.templates || []);
+const templates = ref([]);
+const error = ref(null);
+
+// Add this function to fetch templates
+const fetchTemplates = async () => {
+  try {
+    loading.value = true;
+    // First get list of template IDs
+    const response = await fetch('https://ec2.sausagee.party/templates');
+    const data = await response.json();
+
+    // Then fetch details for each template
+    const templateDetails = await Promise.all(
+      data.templates.map(async (id) => {
+        const detailResponse = await fetch(`https://ec2.sausagee.party/template/${id}`);
+        const template = await detailResponse.json();
+
+        // Get thumbnail URL from first image if available
+        const thumbnailUrl = `https://ec2.sausagee.party/thumb/${template.id}`;
+
+        return {
+          id: template.id,
+          name: template.name,
+          description: template.description || '',
+          thumbnail: thumbnailUrl,
+          tags: template.tags || [],
+          parameters: template.parameters || {},
+          createdAt: template.created,
+          modifiedAt: template.modified
+        };
+      })
+    );
+
+    templates.value = templateDetails;
+    error.value = null;
+  } catch (err) {
+    console.error('Error fetching templates:', err);
+    error.value = 'Failed to load templates';
+    message.error('載入模板失敗，請稍後再試');
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Add fetchProjects function
+const fetchProjects = async () => {
+  try {
+    loading.value = true;
+    // First get list of project IDs
+    const response = await fetch('https://ec2.sausagee.party/projects');
+    const data = await response.json();
+
+    // Then fetch details for each project
+    const projectDetails = await Promise.all(
+      data.projects.map(async (id) => {
+        const detailResponse = await fetch(`https://ec2.sausagee.party/project/${id}`);
+        const project = await detailResponse.json();
+
+        // Get thumbnail URL from first image if available
+        const thumbnailUrl = `https://ec2.sausagee.party/thumb/${project.id}`;
+
+        return {
+          id: project.id,
+          name: project.name,
+          description: project.description || '',
+          thumbnail: thumbnailUrl,
+          tags: project.tags || [],
+          images: project.images || [],
+          readonly: project.readonly,
+          createdAt: project.created,
+          modifiedAt: project.modified
+        };
+      })
+    );
+
+    projects.value = projectDetails;
+    error.value = null;
+  } catch (err) {
+    console.error('Error fetching projects:', err);
+    error.value = 'Failed to load projects';
+    message.error('載入專案失敗，請稍後再試');
+  } finally {
+    loading.value = false;
+  }
+};
 
 // 初始載入專案和模板
 onMounted(async () => {
   loading.value = true;
   try {
-    await projectStore.fetchProjects();
-    await projectStore.fetchTemplates();
+    await Promise.all([
+      fetchProjects(),
+      fetchTemplates()
+    ]);
   } catch (error) {
-    console.error("載入項目失敗:", error);
-    message.error("載入專案列表失敗，請稍後再試");
+    console.error('載入數據失敗:', error);
+    message.error('載入數據失敗，請稍後再試');
   } finally {
     loading.value = false;
   }
@@ -750,7 +794,7 @@ const onPageSizeChange = (size) => {
   display: flex;
   flex-direction: column;
   background-color: #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 .template-card:hover {
@@ -1120,10 +1164,30 @@ const onPageSizeChange = (size) => {
   overflow: hidden;
 }
 
-.template-preview img {
+.template-preview :deep(.n-image) {
+  height: 100%;
+  /* Make NImage component fill container height */
+}
+
+.template-preview :deep(.n-image img) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* Ensure image covers the area */
+  object-position: center;
+  /* Center the image */
+}
+
+/* Add these new styles for better image handling */
+.template-preview :deep(.n-image-preview-container) {
+  height: 100%;
+}
+
+.template-preview :deep(.n-image-wrapper) {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .template-quick-actions {
