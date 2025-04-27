@@ -1,43 +1,23 @@
 <template>
   <div class="ai-generate-page">
-    <AiGeneratePageHeader
-      :loading="loading"
-      :selectedImages="selectedImageIds"
-      :hasSelectedImages="selectedImageIds.length > 0"
-      @regenerate="regenerateSelected"
-      @save-and-continue="saveAndContinue"
-    />
+    <AiGeneratePageHeader :loading="loading" :selectedImages="savedImageIds"
+      :hasSelectedImages="savedImageIds.length > 0" @regenerate="regenerateSelected"
+      @save-and-continue="saveAndContinue" />
 
     <NLayoutContent class="page-content">
       <div class="generation-info">
         <div class="prompt-display">
           <h3>提示詞</h3>
           <div class="prompt-input-container">
-            <NInput
-              v-model:value="editablePrompt"
-              type="textarea"
-              :autosize="{ minRows: 2, maxRows: 4 }"
-              placeholder="輸入您的設計提示詞"
-              @blur="updatePrompt"
-              class="prompt-textarea"
-            />
-            <NButton
-              class="optimize-button"
-              type="primary"
-              @click="optimizePrompt"
-              title="優化提示詞"
-            >
+            <NInput v-model:value="editablePrompt" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }"
+              placeholder="輸入您的設計提示詞" @blur="updatePrompt" class="prompt-textarea" />
+            <NButton class="optimize-button" type="primary" @click="optimizePrompt" title="優化提示詞">
               <template #icon>
                 <!-- <NIcon><MagicOutlined /></NIcon> -->
               </template>
               ★
             </NButton>
-            <NButton
-              class="generate-button"
-              type="primary"
-              @click="regenerateImages"
-              title="生成圖片"
-            >
+            <NButton class="generate-button" type="primary" @click="regenerateImages" title="生成圖片">
               Generate
             </NButton>
             <!-- <NButton
@@ -53,53 +33,31 @@
 
           <!-- Images status bars -->
           <div class="image-status-container">
-            <div
-              class="status-block selected-status-block"
-              v-if="selectedImageIds.length > 0"
-              @click="toggleSelectedImagesDropdown"
-            >
+            <div class="status-block selected-status-block" v-if="selectedImageIds.length > 0"
+              @click="toggleSelectedImagesDropdown">
               你選擇了 {{ selectedImageIds.length }} 張圖片 (
               選擇加入下一次圖片生成 )
               <NIcon class="dropdown-icon">{{
                 showSelectedImagesDropdown ? "▲" : "▼"
-              }}</NIcon>
+                }}</NIcon>
 
-              <div
-                class="status-dropdown selected-images-dropdown"
-                v-if="showSelectedImagesDropdown"
-              >
-                <div
-                  v-for="id in selectedImageIds"
-                  :key="id"
-                  class="selected-image-item"
-                  @click="scrollToImage(id)"
-                >
+              <div class="status-dropdown selected-images-dropdown" v-if="showSelectedImagesDropdown">
+                <div v-for="id in selectedImageIds" :key="id" class="selected-image-item" @click="scrollToImage(id)">
                   圖片 ID: {{ id.substring(id.length - 6) }}
                 </div>
               </div>
             </div>
 
-            <div
-              class="status-block saved-status-block"
-              v-if="savedImageIds.length > 0"
-              @click="toggleSavedImagesDropdown"
-            >
+            <div class="status-block saved-status-block" v-if="savedImageIds.length > 0"
+              @click="toggleSavedImagesDropdown">
               你儲存了 {{ savedImageIds.length }} 張圖片 ( 加入至個人品牌資料庫
               )
               <NIcon class="dropdown-icon">{{
                 showSavedImagesDropdown ? "▲" : "▼"
-              }}</NIcon>
+                }}</NIcon>
 
-              <div
-                class="status-dropdown saved-images-dropdown"
-                v-if="showSavedImagesDropdown"
-              >
-                <div
-                  v-for="id in savedImageIds"
-                  :key="id"
-                  class="saved-image-item"
-                  @click="scrollToImage(id)"
-                >
+              <div class="status-dropdown saved-images-dropdown" v-if="showSavedImagesDropdown">
+                <div v-for="id in savedImageIds" :key="id" class="saved-image-item" @click="scrollToImage(id)">
                   圖片 ID: {{ id.substring(id.length - 6) }}
                 </div>
               </div>
@@ -111,13 +69,8 @@
 
         <!-- 顯示進度條或提示訊息，根據載入狀態 -->
         <div v-if="loading" class="progress-container">
-          <NProgress
-            type="line"
-            :percentage="generationProgress"
-            :indicator-placement="'inside'"
-            :height="12"
-            processing
-          />
+          <NProgress type="line" :percentage="generationProgress" :indicator-placement="'inside'" :height="12"
+            processing />
           <div class="progress-text">
             {{ generationProgress >= 100 ? "處理完成" : "正在生成圖片中..." }}
             {{ generationProgress.toFixed(0) }}%
@@ -131,11 +84,7 @@
       <!-- 圖片部分，不再包在NSpin中 -->
       <div v-if="generatedImages.length" class="images-section">
         <!-- 將生成的圖片按批次分組顯示 -->
-        <div
-          v-for="(batch, batchIndex) in imageBatches"
-          :key="batchIndex"
-          class="image-batch"
-        >
+        <div v-for="(batch, batchIndex) in imageBatches" :key="batchIndex" class="image-batch">
           <!-- 批次標題和時間戳 -->
           <div class="generation-batch-title">
             <h4>生成於 {{ formatTimestamp(batch[0]?.createdAt) }}</h4>
@@ -143,56 +92,35 @@
           <!-- 水平滑動容器 -->
           <div class="horizontal-scroll-container">
             <div class="images-row">
-              <div
-                v-for="image in batch"
-                :key="image.id"
-                :class="[
-                  'image-card',
-                  { selected: selectedImageIds.includes(image.id) },
-                  { highlighted: highlightedImageId === image.id },
-                ]"
-                @click="toggleImageSelection(image.id)"
-                class="image-card-container"
-                :data-image-id="image.id"
-              >
-                <NImage
+              <div v-for="image in batch" :key="image.id" :class="[
+                'image-card',
+                { selected: selectedImageIds.includes(image.id) },
+                { highlighted: highlightedImageId === image.id },
+              ]" @click="toggleImageSelection(image.id)" class="image-card-container" :data-image-id="image.id">
+                <!-- <NImage
                   :src="image.url"
+                  object-fit="contain"
                   object-fit="contain"
                   :alt="'生成圖像'"
                   class="generated-image"
                   preview-disabled
-                />
+                /> -->
+                <img :src="image.url" :alt="'生成圖像'" class="generated-image" />
                 <div class="image-overlay">
-                  <div
-                    class="selection-indicator"
-                    v-if="selectedImageIds.includes(image.id)"
-                  >
+                  <div class="selection-indicator" v-if="selectedImageIds.includes(image.id)">
                     <NIcon size="24" class="check-icon">✓</NIcon>
                   </div>
                   <div class="bottom-right-actions">
-                    <NButton
-                      circle
-                      quaternary
-                      @click.stop="previewImage(image.url)"
-                      class="action-button"
-                    >
+                    <NButton circle quaternary @click.stop="previewImage(image.url)" class="action-button">
                       <template #icon>👁️</template>
                     </NButton>
-                    <NButton
-                      circle
-                      quaternary
-                      @click.stop="toggleSaveImage(image.id)"
-                      :class="[
-                        'action-button',
-                        { saved: savedImageIds.includes(image.id) },
-                      ]"
-                    >
+                    <NButton circle quaternary @click.stop="toggleSaveImage(image.id)" :class="[
+                      'action-button',
+                      { saved: savedImageIds.includes(image.id) },
+                    ]">
                       <template #icon>💾</template>
                     </NButton>
-                    <div
-                      class="save-indicator"
-                      v-if="savedImageIds.includes(image.id)"
-                    >
+                    <div class="save-indicator" v-if="savedImageIds.includes(image.id)">
                       <NIcon size="24" class="save-icon">✓</NIcon>
                     </div>
                   </div>
@@ -202,30 +130,23 @@
           </div>
         </div>
       </div>
-      <NEmpty
-        v-else-if="!loading"
-        description="尚未生成圖像，請先進行設計輸入"
-      />
+      <NEmpty v-else-if="!loading" description="尚未生成圖像，請先進行設計輸入" />
     </NLayoutContent>
 
     <!-- 圖像預覽對話框 -->
-    <NModal
-      v-model:show="showPreviewModal"
-      preset="card"
-      style="width: 80%; max-width: 1200px"
-    >
+    <NModal v-model:show="showPreviewModal" preset="card" style="width: 80%; max-width: 1200px">
       <template #header>
         <div class="preview-header">
           <h3>圖像預覽</h3>
         </div>
       </template>
       <div class="preview-content" v-if="previewImageUrl">
-        <NImage
-          :src="previewImageUrl"
-          object-fit="contain"
-          :alt="'預覽圖像'"
-          class="preview-image"
-        />
+        <NImage :src="previewImageUrl" object-fit="contain" :alt="'預覽圖像'" class="preview-image" />
+        <!-- <img 
+    :src="previewImageUrl" 
+    :alt="'預覽圖像'" 
+    class="preview-image"
+  /> -->
       </div>
     </NModal>
   </div>
@@ -963,12 +884,15 @@ const optimizePrompt = async () => {
 
 <style scoped>
 .ai-generate-page {
-  min-height: 100vh; /* 改用最小高度而非固定高度 */
+  min-height: 100vh;
+  /* 改用最小高度而非固定高度 */
   width: 100%;
   display: flex;
   flex-direction: column;
-  position: relative; /* 確保相對定位 */
-  overflow-y: auto; /* 允許垂直滾動 */
+  position: relative;
+  /* 確保相對定位 */
+  overflow-y: auto;
+  /* 允許垂直滾動 */
 }
 
 .check-icon {
@@ -1005,8 +929,10 @@ const optimizePrompt = async () => {
 
 .page-content {
   flex: 1;
-  overflow-y: auto; /* 確保內容可滾動 */
-  position: relative; /* 使用相對定位 */
+  overflow-y: auto;
+  /* 確保內容可滾動 */
+  position: relative;
+  /* 使用相對定位 */
   padding: 0 24px 24px 24px;
   width: 100%;
   box-sizing: border-box;
@@ -1049,39 +975,47 @@ const optimizePrompt = async () => {
 .horizontal-scroll-container {
   width: 100%;
   overflow-x: auto;
-  padding-bottom: 16px; /* Space for scrollbar */
+  padding-bottom: 16px;
+  /* Space for scrollbar */
 }
 
 .images-row {
   display: flex;
   flex-direction: row;
   gap: 16px;
-  min-width: min-content; /* Ensures the row doesn't wrap */
-}
-
-.generated-image {
-  width: 100%;
-  height: 100%;
+  min-width: min-content;
+  /* Ensures the row doesn't wrap */
 }
 
 .image-card-container {
   flex: 0 0 auto;
-  width: 300px; /* Fixed width for each card */
-  height: 300px; /* Fixed height for consistent look */
+  width: 300px;
+  height: 300px;
   position: relative;
   border-radius: 8px;
   overflow: hidden;
   border: 2px solid transparent;
   transition: all 0.3s ease;
-  background-color: #f5f5f5; /* Add a background color to show around the image */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background-color: #f9f9f9; /* Light background to contrast with transparent images */
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
 }
 
 .image-card-container.selected {
   border-color: #2080f0;
   box-shadow: 0 0 0 2px rgba(32, 128, 240, 0.3);
+}
+
+.generated-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* Ensures the entire image is visible */
+  display: block; /* Removes any extra spacing */
+  background-color: transparent;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .image-overlay {
@@ -1090,20 +1024,46 @@ const optimizePrompt = async () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.1) 0%,
-    rgba(0, 0, 0, 0.3) 100%
-  );
+  background: linear-gradient(to bottom,
+      rgba(0, 0, 0, 0.02) 0%,
+      rgba(0, 0, 0, 0.05) 70%,
+      rgba(0, 0, 0, 0.15) 100%);
+  /* Subtle gradient overlay */
   opacity: 0;
   transition: opacity 0.3s ease;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
 }
 
 .image-card-container:hover .image-overlay {
   opacity: 1;
+}
+
+.images-row {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  padding: 8px 4px;
+  /* Added padding for better spacing */
+  min-width: min-content;
+  /* Ensures the row doesn't wrap */
+}
+
+.horizontal-scroll-container {
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 16px;
+  /* Space for scrollbar */
+  scrollbar-width: thin;
+  /* For Firefox */
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.horizontal-scroll-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.horizontal-scroll-container::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
 }
 
 .selection-indicator {
@@ -1145,13 +1105,16 @@ const optimizePrompt = async () => {
   align-items: center;
   align-self: stretch;
   white-space: nowrap;
-  background-color: #18a058; /* Green color */
-  color: white; /* Ensuring text is white for contrast */
+  background-color: #18a058;
+  /* Green color */
+  color: white;
+  /* Ensuring text is white for contrast */
   border-color: #18a058;
 }
 
 .generate-button:hover {
-  background-color: #36ad6a; /* Slightly lighter green for hover state */
+  background-color: #36ad6a;
+  /* Slightly lighter green for hover state */
   border-color: #36ad6a;
 }
 
@@ -1161,13 +1124,16 @@ const optimizePrompt = async () => {
   align-items: center;
   align-self: stretch;
   white-space: nowrap;
-  background-color: #f0c040; /* Yellow color */
-  color: white; /* Ensuring text is white for contrast */
+  background-color: #f0c040;
+  /* Yellow color */
+  color: white;
+  /* Ensuring text is white for contrast */
   border-color: #f0c040;
 }
 
 .save-button:hover {
-  background-color: #f0d060; /* Slightly lighter yellow for hover state */
+  background-color: #f0d060;
+  /* Slightly lighter yellow for hover state */
   border-color: #f0d060;
 }
 
@@ -1259,6 +1225,7 @@ const optimizePrompt = async () => {
   from {
     box-shadow: 0 0 5px rgba(255, 77, 79, 0.7);
   }
+
   to {
     box-shadow: 0 0 20px rgba(255, 77, 79, 0.9), 0 0 30px rgba(255, 77, 79, 0.5);
   }
@@ -1267,7 +1234,8 @@ const optimizePrompt = async () => {
 .saved-count {
   margin-top: 4px;
   font-size: 0.9em;
-  color: #18a058; /* Green color to match the Generate button */
+  color: #18a058;
+  /* Green color to match the Generate button */
   font-weight: 500;
   text-align: left;
 }
@@ -1380,5 +1348,35 @@ const optimizePrompt = async () => {
   .image-status-container {
     flex-direction: column;
   }
+}
+
+@media (min-width: 1440px) {
+  .image-card-container {
+    width: 280px;
+    /* Larger on big screens */
+  }
+}
+
+/* Improve selection and highlight states */
+.image-card-container.selected {
+  border-color: #2080f0;
+  box-shadow: 0 0 0 2px rgba(32, 128, 240, 0.3), 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.bottom-right-actions {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  /* Hide by default */
+  transition: opacity 0.2s ease;
+}
+
+.image-card-container:hover .bottom-right-actions {
+  opacity: 1;
+  /* Show on hover */
 }
 </style>

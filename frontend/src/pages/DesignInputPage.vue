@@ -1,97 +1,47 @@
 <template>
   <div class="design-input-page">
-    <DesignInputPageHeader
-      :project="project"
-      :loading="loading"
-      :isFormValid="!!form.prompt.trim()"
-      @clear-form="clearForm"
-      @start-generation="startGeneration"
-    />
+    <DesignInputPageHeader :project="project" :loading="loading" :isFormValid="!!form.prompt.trim()"
+      @clear-form="clearForm" @start-generation="startGeneration" />
 
     <NLayoutContent class="page-content">
       <NSpin :show="loading">
         <NGrid cols="1 l:3" x-gap="24" y-gap="24">
           <NGridItem class="design-form-container" span="1 l:2">
             <NCard title="設計提示詞" class="design-form">
-              <NForm
-                ref="formRef"
-                :model="form"
-                :rules="rules"
-                label-placement="left"
-                label-width="auto"
-                require-mark-placement="right-hanging"
-              >
+              <NForm ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="auto"
+                require-mark-placement="right-hanging">
                 <NFormItem label="提示詞" path="prompt" required>
-                  <NInput
-                    v-model:value="form.prompt"
-                    type="textarea"
-                    class="text-input-left"
-                    placeholder="描述你想要的設計，例如：現代簡約風格的客廳，採用白色和木質元素..."
-                    :autosize="{ minRows: 5, maxRows: 10 }"
-                  />
-                  <NButton
-                    class="optimize-prompt-button"
-                    type="primary"
-                    @click="optimizePrompt"
-                    :disabled="!form.prompt.trim()"
-                    title="優化提示詞"
-                  >
+                  <NInput v-model:value="form.prompt" type="textarea" class="text-input-left"
+                    placeholder="描述你想要的設計，例如：現代簡約風格的客廳，採用白色和木質元素..." :autosize="{ minRows: 5, maxRows: 10 }" />
+                  <NButton class="optimize-prompt-button" type="primary" @click="optimizePrompt"
+                    :disabled="!form.prompt.trim()" title="優化提示詞">
                     <template #icon>★</template>
                   </NButton>
                 </NFormItem>
 
                 <NFormItem label="負面提示詞" path="negativePrompt">
-                  <NInput
-                    v-model:value="form.negativePrompt"
-                    type="textarea"
-                    placeholder="描述你不想出現在生成結果中的元素，例如：模糊, 畸形, 低質量..."
-                    :autosize="{ minRows: 3, maxRows: 5 }"
-                    class="text-input-left"
-                  />
+                  <NInput v-model:value="form.negativePrompt" type="textarea"
+                    placeholder="描述你不想出現在生成結果中的元素，例如：模糊, 畸形, 低質量..." :autosize="{ minRows: 3, maxRows: 5 }"
+                    class="text-input-left" />
                 </NFormItem>
 
                 <NFormItem label="風格" path="style">
-                  <NSelect
-                    v-model:value="form.style"
-                    :options="styleOptions"
-                    placeholder="選擇設計風格"
-                    clearable
-                  />
+                  <NSelect v-model:value="form.style" :options="styleOptions" placeholder="選擇設計風格" clearable />
                 </NFormItem>
 
                 <NFormItem label="尺寸" path="size">
-                  <NSelect
-                    v-model:value="form.size"
-                    :options="sizeOptions"
-                    placeholder="選擇圖像尺寸"
-                  />
+                  <NSelect v-model:value="form.size" :options="sizeOptions" placeholder="選擇圖像尺寸" />
                 </NFormItem>
 
                 <NFormItem label="生成數量" path="count">
-                  <NSlider
-                    v-model:value="form.count"
-                    :min="1"
-                    :max="5"
-                    :step="1"
-                  />
-                  <NInputNumber
-                    v-model:value="form.count"
-                    :min="1"
-                    :max="10"
-                    size="small"
-                    style="margin-left: 12px"
-                  />
+                  <NSlider v-model:value="form.count" :min="1" :max="10" :step="1" />
+                  <NInputNumber v-model:value="form.count" :min="1" :max="10" size="small" style="margin-left: 12px" />
                 </NFormItem>
 
                 <NFormItem label="提示詞引導強度" path="cfgScale">
                   <NTooltip trigger="hover" placement="top">
                     <template #trigger>
-                      <NSlider
-                        v-model:value="form.cfgScale"
-                        :min="1"
-                        :max="20"
-                        :step="0.5"
-                      />
+                      <NSlider v-model:value="form.cfgScale" :min="1" :max="20" :step="0.5" />
                     </template>
                     數值越高，AI 生成時會更嚴格地遵循提示詞
                   </NTooltip>
@@ -100,12 +50,7 @@
                 <NFormItem label="迭代步數" path="steps">
                   <NTooltip trigger="hover" placement="top">
                     <template #trigger>
-                      <NSlider
-                        v-model:value="form.steps"
-                        :min="10"
-                        :max="150"
-                        :step="1"
-                      />
+                      <NSlider v-model:value="form.steps" :min="10" :max="150" :step="1" />
                     </template>
                     步數越多，生成結果越精細，但耗時也越長
                   </NTooltip>
@@ -113,16 +58,9 @@
 
                 <NFormItem label="隨機種子" path="seed">
                   <div class="seed-input">
-                    <NInputNumber
-                      v-model:value="form.seed"
-                      :min="-1"
-                      :max="2147483647"
-                      style="width: 160px"
-                      :disabled="form.randomizeSeed"
-                    />
-                    <NCheckbox v-model:checked="form.randomizeSeed"
-                      >隨機</NCheckbox
-                    >
+                    <NInputNumber v-model:value="form.seed" :min="-1" :max="2147483647" style="width: 160px"
+                      :disabled="form.randomizeSeed" />
+                    <NCheckbox v-model:checked="form.randomizeSeed">隨機</NCheckbox>
                   </div>
                 </NFormItem>
               </NForm>
@@ -132,87 +70,48 @@
           <NGridItem class="reference-container">
             <NCard title="參考圖像" class="reference-card">
               <div class="reference-content">
-                <div
-                  v-if="referenceImages.length === 0"
-                  class="empty-reference"
-                >
+                <div v-if="referenceImages.length === 0" class="empty-reference">
                   <p>沒有參考圖像</p>
                   <NButton @click="openReferenceUpload">上傳參考圖像</NButton>
                 </div>
                 <div v-else class="reference-images">
-                  <div
-                    v-for="(image, index) in referenceImages"
-                    :key="index"
-                    class="reference-image-wrapper"
-                  >
-                    <NImage
-                      :src="image"
-                      object-fit="contain"
-                      width="100%"
-                      :alt="'參考圖像 ' + (index + 1)"
-                      class="reference-image"
-                    />
+                  <div v-for="(image, index) in referenceImages" :key="index" class="reference-image-wrapper">
+                    <NImage :src="image" object-fit="contain" width="100%" :alt="'參考圖像 ' + (index + 1)"
+                      class="reference-image" />
                     <div class="reference-image-overlay">
-                      <NButton
-                        circle
-                        quaternary
-                        type="error"
-                        @click="removeReferenceImage(index)"
-                        class="remove-button"
-                      >
+                      <NButton circle quaternary type="error" @click="removeReferenceImage(index)"
+                        class="remove-button">
                         <template #icon>✕</template>
                       </NButton>
                     </div>
                     <div class="reference-prompt">
-                      <NInput
-                        v-model:value="image.prompt"
-                        type="text"
-                        placeholder="輸入此參考圖像的提示詞"
-                        @update:value="updateReferencePrompt(index, $event)"
-                      />
+                      <NInput v-model:value="image.prompt" type="text" placeholder="輸入此參考圖像的提示詞"
+                        @update:value="updateReferencePrompt(index, $event)" />
                     </div>
                   </div>
                   <div class="reference-actions">
-                    <NButton
-                      @click="openReferenceUpload"
-                      :disabled="referenceImages.length >= 3"
-                    >
+                    <NButton @click="openReferenceUpload" :disabled="referenceImages.length >= 3">
                       {{
                         referenceImages.length >= 3
                           ? "最多 3 張參考圖"
                           : "添加參考圖"
                       }}
                     </NButton>
-                    <NButton
-                      @click="clearReferenceImages"
-                      :disabled="referenceImages.length === 0"
-                    >
+                    <NButton @click="clearReferenceImages" :disabled="referenceImages.length === 0">
                       清除所有
                     </NButton>
                   </div>
                 </div>
 
-                <div
-                  class="reference-strength"
-                  v-if="referenceImages.length > 0"
-                >
+                <div class="reference-strength" v-if="referenceImages.length > 0">
                   <span>參考強度：{{ form.referenceStrength }}%</span>
-                  <NSlider
-                    v-model:value="form.referenceStrength"
-                    :min="0"
-                    :max="100"
-                    :step="5"
-                  />
+                  <NSlider v-model:value="form.referenceStrength" :min="0" :max="100" :step="5" />
                 </div>
               </div>
             </NCard>
 
             <NCard title="自訂模型" class="model-card">
-              <NSelect
-                v-model:value="form.model"
-                :options="modelOptions"
-                placeholder="選擇生成模型"
-              />
+              <NSelect v-model:value="form.model" :options="modelOptions" placeholder="選擇生成模型" />
               <div class="model-description" v-if="selectedModelDescription">
                 {{ selectedModelDescription }}
               </div>
@@ -222,43 +121,20 @@
       </NSpin>
     </NLayoutContent>
 
-    <NModal
-      v-model:show="showUploadModal"
-      preset="card"
-      title="上傳參考圖像"
-      class="upload-modal"
-      style="
+    <NModal v-model:show="showUploadModal" preset="card" title="上傳參考圖像" class="upload-modal" style="
         width: 90%;
         max-width: 600px;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-      "
-    >
+      ">
       <div class="upload-area">
-        <NUpload
-          ref="uploadRef"
-          accept="image/*"
-          :default-upload="false"
-          :max="1"
-          :multiple="false"
-          @change="handleUploadChange"
-        >
+        <NUpload ref="uploadRef" accept="image/*" :default-upload="false" :max="1" :multiple="false"
+          @change="handleUploadChange">
           <div class="upload-trigger">
             <div class="upload-inner">
               <div class="upload-icon">
-                <svg
-                  width="48"
-                  height="48"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M12 5V19M5 12H19"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" />
                 </svg>
               </div>
               <div class="upload-text">
@@ -271,23 +147,15 @@
         </NUpload>
 
         <div class="upload-preview" v-if="uploadFile">
-          <NImage
-            :src="uploadFileUrl"
-            object-fit="contain"
-            :alt="'預覽圖像'"
-            style="max-height: 300px; border-radius: 8px"
-          />
+          <NImage :src="uploadFileUrl" object-fit="contain" :alt="'預覽圖像'"
+            style="max-height: 300px; border-radius: 8px" />
         </div>
       </div>
 
       <template #footer>
         <div class="modal-footer">
           <NButton @click="showUploadModal = false">取消</NButton>
-          <NButton
-            type="primary"
-            :disabled="!uploadFile"
-            @click="addReferenceImage"
-          >
+          <NButton type="primary" :disabled="!uploadFile" @click="addReferenceImage">
             添加
           </NButton>
         </div>
@@ -551,6 +419,69 @@ const updateReferencePrompt = (index, prompt) => {
   }
 };
 
+const saveImage = async (imageUrl, prompt = "", seed = null) => {
+  try {
+    let formData = new FormData();
+
+    // Handle different image sources
+    if (typeof imageUrl === 'object' && imageUrl.url) {
+      // Handle object with url property
+      const response = await fetch(imageUrl.url);
+      const blob = await response.blob();
+      formData.append("file", blob, "reference_image.png");
+    } else {
+      // Handle direct URL string
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      formData.append("file", blob, "reference_image.png");
+    }
+
+    // Add required projectId (uses temp if none is available)
+    formData.append("projectId", projectId.value || "temp");
+
+    // Add optional parameters if available
+    if (prompt) {
+      formData.append("prompt", prompt);
+    }
+
+    if (seed) {
+      formData.append("seed", seed);
+    }
+
+    // Add reference image metadata
+    // const parameters = {
+    //   isReference: true,
+    //   source: "userUploaded"
+    // };
+    // formData.append("parameters", parameters);
+
+    // formData.append("parameters[isReference]", true);
+    // formData.append("parameters[source]", "userUploaded");
+    // formData.append("parameters[steps]", form.value.steps);
+
+    // Send request to save the image
+    const saveResponse = await fetch("https://ec2.sausagee.party/img/save", {
+      method: "POST",
+      body: formData
+    });
+
+    if (!saveResponse.ok) {
+      const errorText = await saveResponse.text();
+      console.error("Image save error:", saveResponse.status, errorText);
+      throw new Error(`Failed to save image: ${saveResponse.status} - ${errorText}`);
+    }
+
+    const data = await saveResponse.json();
+    console.log("Image saved successfully, ID:", data.id);
+    return data.id;
+
+  } catch (error) {
+    console.error("Error saving image:", error);
+    throw error;
+  }
+};
+
+
 // 開始生成
 const startGeneration = async () => {
   if (!form.value.prompt.trim()) return;
@@ -562,9 +493,51 @@ const startGeneration = async () => {
     if (form.value.randomizeSeed) {
       form.value.seed = Math.floor(Math.random() * 1000000).toString();
     }
+    const formData = new FormData();
+    console.log("reference Images: ", referenceImages.value);
+    let imageIds = [];
+    if (referenceImages.value.length > 0) {
+      // 顯示上傳進度提示
+      console.log("正在儲存參考圖像...");
+
+      // 並行保存所有圖像並獲取 ID
+      // 並行保存所有圖像並獲取 ID
+      try {
+        // Save all images in parallel and get their IDs
+        const savePromises = referenceImages.value.map(img => {
+          const imgSource = typeof img === 'object' ? img : { url: img, prompt: "" };
+          return saveImage(imgSource.url, imgSource.prompt || "");
+        });
+        
+        imageIds = await Promise.all(savePromises);
+        console.log("參考圖像已保存，IDs:", imageIds);
+        
+        // 添加參考圖像 ID（而不是 URL）
+        if (imageIds.length > 0) {
+          imageIds.forEach((id) => {
+            formData.append("imgs", id);  // 一個一個 append
+          });
+
+          // 添加參考強度
+          formData.append(
+            "similarityStrength",
+            (form.value.referenceStrength / 100).toString()
+          );
+
+          // 收集參考圖像的提示詞
+          const refPrompts = referenceImages.value.map((img) => img.prompt || "");
+          if (refPrompts.some((prompt) => prompt)) {
+            formData.append("reference_prompts", JSON.stringify(refPrompts));
+          }
+        }
+      } catch (error) {
+        console.error("儲存參考圖像失敗:", error);
+        // 顯示錯誤通知，但繼續生成過程
+      }
+    }
+    console.log("參考圖像 IDs:", imageIds);
 
     // 創建表單數據
-    const formData = new FormData();
     formData.append("batch_count", form.value.count);
     formData.append("text", form.value.prompt);
 
@@ -577,7 +550,7 @@ const startGeneration = async () => {
     // 會導致錯誤，因為 API 端點不接受這個參數
     // formData.append("seed", form.value.seed);
 
-    // 處理尺寸參數與其他參數
+
     const [width, height] = form.value.size.split("x").map(Number);
 
     // 直接將參數作為字典形式傳遞，不使用 JSON.stringify
@@ -596,12 +569,11 @@ const startGeneration = async () => {
     }
 
     // 處理參考圖像
-    if (referenceImages.value.length > 0) {
-      // 獲取參考圖像 URL 列表
-      const imageUrls = referenceImages.value.map((img) => img.url || img);
-
-      // 將圖像 URL 數組轉為 JSON 字符串
-      formData.append("imgs", JSON.stringify(imageUrls));
+    // 添加參考圖像 ID（而不是 URL）
+    if (imageIds.length > 0) {
+      imageIds.forEach((id) => {
+        formData.append("imgs", id);  // 一個一個 append
+      });
 
       // 添加參考強度
       formData.append(
@@ -685,6 +657,7 @@ const startGeneration = async () => {
   background: rgba(255, 255, 255, 0.9);
   border-radius: 4px;
 }
+
 /* 現有的文本對齊樣式 */
 .text-input-left :deep(.n-input__textarea-el) {
   text-align: left !important;
