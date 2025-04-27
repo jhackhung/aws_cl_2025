@@ -814,29 +814,64 @@ const saveAndContinue = () => {
     return;
   }
 
-  // 獲取儲存的第一張圖片
-  const imageId = savedImageIds.value[0];
-  const savedImage = generatedImages.value.find((img) => img.id === imageId);
+  try {
+    // 獲取儲存的第一張圖片
+    const imageId = savedImageIds.value[0];
+    const savedImage = generatedImages.value.find((img) => img.id === imageId);
 
-  if (!savedImage) {
-    message.error("找不到已儲存的圖片，請重新儲存");
-    return;
+    if (!savedImage) {
+      message.error("找不到已儲存的圖片，請重新儲存");
+      return;
+    }
+
+    // 將圖像添加到 store 的已生成圖像列表的開頭
+    // 這樣即使頁面重新加載，圖像也會持久存在
+    const existingImage = imageStore.generatedImages.find(
+      (img) => img.id === savedImage.id
+    );
+    if (!existingImage) {
+      // 只有當圖像不存在時才添加，避免重複
+      imageStore.generatedImages = [
+        savedImage,
+        ...imageStore.generatedImages.filter((img) => img.id !== savedImage.id),
+      ];
+    }
+
+    // 更新 store 中的選中圖像
+    if (typeof imageStore.selectImage === "function") {
+      imageStore.selectImage(savedImage);
+    }
+
+    // 使用 replace 而不是 push 來避免導航歷史堆積
+    router.push({
+      name: "designer-revision",
+      params: {
+        projectId: projectId.value !== "temp" ? projectId.value : "temp",
+        imageId: savedImage.id,
+      },
+      replace: false,
+    });
+
+    // 使用 localStorage 持久化保存當前選中的圖像，以防頁面刷新
+    try {
+      localStorage.setItem(
+        "lastSelectedImage",
+        JSON.stringify({
+          id: savedImage.id,
+          url: savedImage.url,
+          prompt: savedImage.prompt,
+          projectId: savedImage.projectId,
+          parameters: savedImage.parameters,
+          createdAt: savedImage.createdAt,
+        })
+      );
+    } catch (e) {
+      console.error("無法將圖像保存到 localStorage:", e);
+    }
+  } catch (error) {
+    console.error("導航到修訂頁面時出錯:", error);
+    message.error(`保存並繼續失敗: ${error.message || "未知錯誤"}`);
   }
-
-  // 將儲存的圖片保存到 store
-  imageStore.selectImage(savedImage);
-
-  // 導航到設計師修訂頁面
-  router.push({
-    name: "designer-revision",
-    params: {
-      projectId: projectId.value !== "temp" ? projectId.value : "temp",
-      imageId: savedImage.id,
-    },
-    state: {
-      selectedImage: savedImage,
-    },
-  });
 };
 
 // 優化提示詞

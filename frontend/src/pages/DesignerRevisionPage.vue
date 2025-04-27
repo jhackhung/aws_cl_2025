@@ -102,13 +102,16 @@
               <div class="settings-container">
                 <div class="original-image">
                   <h2>原始圖像</h2>
-                  <NImage
-                    v-if="originalImage"
-                    :src="originalImage.url"
-                    object-fit="contain"
-                    :width="400"
-                    :alt="'原始圖像'"
-                  />
+                  <div v-if="originalImage" class="image-container">
+                    <NImage
+                      :src="getImageUrl(originalImage)"
+                      object-fit="contain"
+                      :width="400"
+                      :alt="'原始圖像'"
+                      show-toolbar
+                    />
+                  </div>
+                  <div v-else class="no-image-placeholder">未找到原始圖像</div>
                 </div>
 
                 <div class="inpainting-settings">
@@ -291,16 +294,43 @@ onMounted(async () => {
 
   try {
     if (imageId.value) {
-      // Load original image
-      const image = imageStore.getImageById(imageId.value);
+      // 首先嘗試從 store 獲取圖像
+      let image = imageStore.getImageById(imageId.value);
+
+      // 如果找不到圖像，嘗試從 localStorage 恢復
+      if (!image) {
+        console.log("找不到圖像從 store，嘗試從 localStorage 恢復");
+        const savedImageJson = localStorage.getItem("lastSelectedImage");
+
+        if (savedImageJson) {
+          try {
+            const savedImage = JSON.parse(savedImageJson);
+            if (savedImage && savedImage.id === imageId.value) {
+              // 將從 localStorage 恢復的圖像添加到 store
+              image = savedImage;
+              imageStore.generatedImages = [
+                savedImage,
+                ...imageStore.generatedImages.filter(
+                  (img) => img.id !== savedImage.id
+                ),
+              ];
+              console.log("成功從 localStorage 恢復圖像");
+            }
+          } catch (e) {
+            console.error("解析 localStorage 中的圖像失敗:", e);
+          }
+        }
+      }
 
       if (!image) {
-        // If image not found in local state, may need to fetch from API
-        console.error("Image not found");
+        // 如果仍然找不到圖像，可能需要直接從 API 獲取
+        console.error("Image not found in both store and localStorage");
+        message.warning("無法找到您選擇的圖像，請返回重新選擇");
         return;
       }
 
       originalImage.value = image;
+      console.log("成功載入原始圖像:", image.id);
 
       // Initialize prompt with image's prompt
       inpaintingPrompt.value = image.prompt || "";
@@ -346,10 +376,16 @@ const initCanvas = () => {
 
 // Load image to canvas
 const loadImageToCanvas = () => {
-  if (!ctx.value || !originalImage.value) return;
+  if (!ctx.value || !originalImage.value) {
+    console.error("Canvas context or original image is null");
+    return;
+  }
+
+  console.log("原始圖像數據:", originalImage.value); // 添加日誌來檢查圖像數據
 
   const img = new Image();
   img.crossOrigin = "Anonymous";
+
   img.onload = () => {
     // Calculate scale to fit image to canvas
     const canvas = canvasRef.value;
@@ -373,21 +409,42 @@ const loadImageToCanvas = () => {
 
     // Save to history
     saveToHistory();
+
+    console.log("圖像成功加載到畫布");
   };
 
-  img.onerror = () => {
-    console.error("Failed to load image to canvas");
-    message.error("載入圖像到畫布失敗");
+  img.onerror = (error) => {
+    console.error("載入圖像到畫布失敗:", error);
+    message.error("載入圖像到畫布失敗: " + (error?.message || "未知錯誤"));
   };
 
-  // Set image source based on available data
+  // 確保URL格式正確
+  let imageUrl = "";
+
   if (typeof originalImage.value === "string") {
-    img.src = originalImage.value;
+    imageUrl = originalImage.value;
   } else if (originalImage.value.url) {
-    img.src = originalImage.value.url;
+    // 如果URL不是以http開頭，添加API基礎URL
+    if (!originalImage.value.url.startsWith("http")) {
+      imageUrl = API_BASE_URL + originalImage.value.url;
+    } else {
+      imageUrl = originalImage.value.url;
+    }
   } else if (originalImage.value.data) {
-    img.src = `data:${originalImage.value.type};base64,${originalImage.value.data}`;
+    imageUrl = `data:${originalImage.value.type || "image/jpeg"};base64,${
+      originalImage.value.data
+    }`;
   }
+
+  console.log("圖像URL:", imageUrl); // 添加日誌來查看最終使用的URL
+
+  if (!imageUrl) {
+    console.error("無法獲取有效的圖像URL");
+    message.error("無法獲取有效的圖像URL");
+    return;
+  }
+
+  img.src = imageUrl;
 };
 
 // Start drawing
@@ -599,7 +656,7 @@ const pollTaskStatus = async (taskId) => {
           selectedResultIndex.value = 0; // Select first new result
           message.success("局部重生成成功完成");
         } else {
-          message.warning("局部重生成未返回結果");
+          message.warning("局部重生成未返回结果");
         }
       } else if (status === "error") {
         completed = true;
@@ -715,6 +772,25 @@ const saveEdits = async () => {
     console.error("Failed to save edits:", error);
     message.error(`保存編輯失敗: ${error.message}`);
   }
+};
+
+// 輔助函數：獲取正確格式的圖像URL
+const getImageUrl = (image) => {
+  if (!image) return "";
+
+  if (typeof image === "string") {
+    return image;
+  } else if (image.url) {
+    // 如果URL不是以http開頭，添加API基礎URL
+    if (!image.url.startsWith("http")) {
+      return API_BASE_URL + image.url;
+    }
+    return image.url;
+  } else if (image.data) {
+    return `data:${image.type || "image/jpeg"};base64,${image.data}`;
+  }
+
+  return "";
 };
 </script>
 
