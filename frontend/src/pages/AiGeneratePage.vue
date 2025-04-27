@@ -2,8 +2,8 @@
   <div class="ai-generate-page">
     <AiGeneratePageHeader
       :loading="loading"
-      :selectedImages="savedImageIds"
-      :hasSelectedImages="savedImageIds.length > 0"
+      :selectedImages="selectedImageIds"
+      :hasSelectedImages="selectedImageIds.length > 0"
       @regenerate="regenerateSelected"
       @save-and-continue="saveAndContinue"
     />
@@ -802,8 +802,15 @@ const saveImages = () => {
 
 // 保存並繼續
 const saveAndContinue = () => {
+  // 如果有選中的圖片但沒有保存，則自動保存
+  if (selectedImageIds.value.length > 0 && savedImageIds.value.length === 0) {
+    // 將選中的圖片添加到保存列表
+    savedImageIds.value = [...selectedImageIds.value];
+    message.success("已自動保存您選中的圖片");
+  }
+
   if (savedImageIds.value.length === 0) {
-    message.warning("請先儲存至少一張圖片");
+    message.warning("請先選擇並儲存至少一張圖片");
     return;
   }
 

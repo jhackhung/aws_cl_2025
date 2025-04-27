@@ -27,7 +27,7 @@
           <NButton
             type="primary"
             @click="saveAndContinue"
-            :disabled="!hasSelectedImages"
+            :disabled="selectedImages.length === 0"
           >
             保存並繼續
           </NButton>
@@ -60,7 +60,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
-  hasSelectedImages: Boolean,
+  hasSelectedImages: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(["regenerate", "save-and-continue"]);
