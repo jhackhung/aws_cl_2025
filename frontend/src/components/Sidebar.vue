@@ -1,18 +1,18 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { NButton } from 'naive-ui';
-import { useProjectStore } from '../stores/project';
-import { useTranslation } from '../composables/useTranslation';
+import { ref, computed, onMounted } from "vue";
+import { useRouter, useRoute } from "vue-router";
+import { NButton } from "naive-ui";
+import { useProjectStore } from "../stores/project";
+import { useTranslation } from "../composables/useTranslation";
 
 const props = defineProps({
   collapsed: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
 });
 
-const emit = defineEmits(['collapse-change']);
+const emit = defineEmits(["collapse-change"]);
 
 const router = useRouter();
 const route = useRoute();
@@ -25,46 +25,47 @@ const currentProject = computed(() => projectStore.currentProject);
 // 根據當前路由決定激活的菜單項
 const activeMenuItem = computed(() => {
   const path = route.path;
-  if (path.includes('/project')) return 'project';
-  if (path.includes('/design')) return 'design-input';
-  if (path.includes('/generate')) return 'ai-generate';
-  if (path.includes('/revise')) return 'designer-revision';
-  if (path.includes('/gallery')) return 'gallery';
-  return 'project';
+  if (path.includes("/project")) return "project";
+  if (path.includes("/design")) return "design-input";
+  if (path.includes("/generate")) return "ai-generate";
+  if (path.includes("/revise")) return "designer-revision";
+  if (path.includes("/gallery")) return "gallery";
+  return "project";
 });
 
 // 導航到指定頁面
 const navigateTo = (key) => {
   // 獲取當前項目ID，默認使用'temp'作為臨時ID
-  const projectId = currentProject.value?.id || route.params.projectId || 'temp';
+  const projectId =
+    currentProject.value?.id || route.params.projectId || "temp";
 
   switch (key) {
-    case 'design-input':
-      router.push({ name: 'design-input', params: { projectId } });
+    case "design-input":
+      router.push({ name: "design-input", params: { projectId } });
       break;
-    case 'ai-generate':
-      router.push({ name: 'ai-generate', params: { projectId } });
+    case "ai-generate":
+      router.push({ name: "ai-generate", params: { projectId } });
       break;
-    case 'designer-revision':
+    case "designer-revision":
       // 對於設計師精修頁面，如果有圖像ID則使用，否則回到生成頁面
       if (route.params.imageId) {
         router.push({
-          name: 'designer-revision',
+          name: "designer-revision",
           params: {
             projectId,
-            imageId: route.params.imageId
-          }
+            imageId: route.params.imageId,
+          },
         });
       } else {
         // 如果沒有圖像ID，則導航到AI生成頁面
-        router.push({ name: 'ai-generate', params: { projectId } });
+        router.push({ name: "ai-generate", params: { projectId } });
       }
       break;
-    case 'gallery':
-      router.push({ name: 'gallery', params: { projectId } });  // Updated this line
+    case "gallery":
+      router.push({ name: "gallery", params: { projectId } }); // Updated this line
       break;
-    case 'project':
-      router.push({ name: 'project' });
+    case "project":
+      router.push({ name: "project" });
       break;
     default:
       break;
@@ -74,12 +75,12 @@ const navigateTo = (key) => {
 // 切換折疊狀態
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value;
-  emit('collapse-change', isCollapsed.value);
+  emit("collapse-change", isCollapsed.value);
 };
 
 // 前往設置頁面
 const goToSettings = () => {
-  router.push({ name: 'settings' });
+  router.push({ name: "settings" });
 };
 
 function goToHomepage() {
@@ -89,7 +90,7 @@ function goToHomepage() {
 // 在組件掛載時檢查當前項目
 onMounted(() => {
   const id = route.params.projectId;
-  if (id && id !== 'temp') {
+  if (id && id !== "temp") {
     projectStore.fetchProjectById(id);
   }
 });
@@ -100,7 +101,7 @@ onMounted(() => {
       <NButton quaternary circle @click="toggleCollapse">
         <template #icon>
           <div class="icon-container">
-            {{ isCollapsed ? '→' : '←' }}
+            {{ isCollapsed ? "→" : "←" }}
           </div>
         </template>
       </NButton>
@@ -112,58 +113,81 @@ onMounted(() => {
     <div class="workflow-steps">
       <div class="step-list">
         <!-- 步驟 1: 設計資料輸入 -->
-        <div class="step-item" :class="{ active: activeMenuItem === 'design-input' }"
-          @click="navigateTo('design-input')">
+        <div
+          class="step-item"
+          :class="{ active: activeMenuItem === 'design-input' }"
+          @click="navigateTo('design-input')"
+        >
           <div class="step-icon">📋</div>
           <div class="step-content" v-if="!isCollapsed">
-            <div class="step-title">1. 設計資料輸入</div>
-            <div class="step-desc">收集設計參數與構想</div>
+            <div class="step-title">
+              {{ t("step1") }}. {{ t("designInputTitle") }}
+            </div>
+            <div class="step-desc">{{ t("step1Desc") }}</div>
           </div>
         </div>
 
         <!-- 步驟 2: AI 生成設計 -->
-        <div class="step-item" :class="{ active: activeMenuItem === 'ai-generate' }" @click="navigateTo('ai-generate')">
+        <div
+          class="step-item"
+          :class="{ active: activeMenuItem === 'ai-generate' }"
+          @click="navigateTo('ai-generate')"
+        >
           <div class="step-icon">🚀</div>
           <div class="step-content" v-if="!isCollapsed">
-            <div class="step-title">2. AI 生成設計</div>
-            <div class="step-desc">快速生成多樣且符合品牌風格的概念圖</div>
+            <div class="step-title">
+              {{ t("step2") }}. {{ t("aiGenerateTitle") }}
+            </div>
+            <div class="step-desc">{{ t("step2Desc") }}</div>
           </div>
         </div>
 
         <!-- 步驟 3: 設計師精修 -->
-        <div class="step-item" :class="{ active: activeMenuItem === 'designer-revision' }"
-          @click="navigateTo('designer-revision')">
+        <div
+          class="step-item"
+          :class="{ active: activeMenuItem === 'designer-revision' }"
+          @click="navigateTo('designer-revision')"
+        >
           <div class="step-icon">🎨</div>
           <div class="step-content" v-if="!isCollapsed">
-            <div class="step-title">3. 設計師精修</div>
-            <div class="step-desc">手動細修與創意微調</div>
+            <div class="step-title">
+              {{ t("step3") }}. {{ t("designerRevisionTitle") }}
+            </div>
+            <div class="step-desc">{{ t("step3Desc") }}</div>
           </div>
         </div>
 
         <!-- 步驟 4: 品牌設計資料庫 -->
-        <div class="step-item" :class="{ active: activeMenuItem === 'gallery' }" @click="navigateTo('gallery')">
+        <div
+          class="step-item"
+          :class="{ active: activeMenuItem === 'gallery' }"
+          @click="navigateTo('gallery')"
+        >
           <div class="step-icon">📁</div>
           <div class="step-content" v-if="!isCollapsed">
-            <div class="step-title">4.專案管理</div>
-            <div class="step-desc">我的圖片生成歷程</div>
+            <div class="step-title">{{ t("galleryTitle") }}</div>
+            <div class="step-desc">{{ t("galleryDescription") }}</div>
           </div>
         </div>
 
         <!-- 專案管理 -->
-        <div class="step-item" :class="{ active: activeMenuItem === 'project' }" @click="navigateTo('project')">
+        <div
+          class="step-item"
+          :class="{ active: activeMenuItem === 'project' }"
+          @click="navigateTo('project')"
+        >
           <div class="step-icon">🏆</div>
           <div class="step-content" v-if="!isCollapsed">
-            <div class="step-title">設計畫廊</div>
-            <div class="step-desc">品牌設計資料庫</div>
+            <div class="step-title">{{ t("projectTitle") }}</div>
+            <div class="step-desc">{{ t("projectDescription") }}</div>
           </div>
         </div>
       </div>
     </div>
 
     <div class="sidebar-footer" v-if="!isCollapsed">
-
       <NButton quaternary block @click="goToHomepage">
-        <h3>關於我們</h3>
+        <h3>{{ t("about") }}</h3>
       </NButton>
 
       <div class="user-actions">
@@ -171,13 +195,12 @@ onMounted(() => {
           <template #icon>
             <div class="button-icon">⚙️</div>
           </template>
-          {{ t('settings') }}
+          {{ t("settings") }}
         </NButton>
       </div>
     </div>
   </div>
 </template>
-
 
 <style scoped>
 .sidebar {
