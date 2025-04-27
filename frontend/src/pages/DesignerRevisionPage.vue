@@ -1,22 +1,14 @@
 <template>
   <div class="revision-page">
-    <DesignerRevisionPageHeader
-      :inpaintingLoading="inpaintingLoading"
-      @save-edits="saveEdits"
-      @apply-inpainting="handleApplyInpainting"
-    />
+    <DesignerRevisionPageHeader :inpaintingLoading="inpaintingLoading" @save-edits="saveEdits"
+      @apply-inpainting="handleApplyInpainting" />
 
     <NLayoutContent class="page-content">
       <NSpin :show="loading || inpaintingLoading">
         <div v-if="inpaintingLoading" class="inpainting-progress">
           <div class="progress-container">
             <h3>正在進行局部重生成，請稍候...</h3>
-            <NProgress
-              type="line"
-              :percentage="imageStore.generationProgress"
-              :height="20"
-              :processing="true"
-            />
+            <NProgress type="line" :percentage="imageStore.generationProgress" :height="20" :processing="true" />
           </div>
         </div>
 
@@ -26,151 +18,109 @@
               <div class="editor-container">
                 <div class="editor-header">
                   <h2>圖像編輯</h2>
+
+                  <div class="editor-instructions">
+                    <p>使用畫筆標記要重新生成的區域（白色），使用橡皮擦移除標記。</p>
+                  </div>
+
                   <div class="tool-selection">
                     <NButtonGroup>
-                      <NButton
-                        :type="currentTool === 'brush' ? 'primary' : 'default'"
-                        @click="currentTool = 'brush'"
-                      >
+                      <NButton :type="currentTool === 'brush' ? 'primary' : 'default'" @click="currentTool = 'brush'">
                         畫筆
                       </NButton>
-                      <NButton
-                        :type="currentTool === 'eraser' ? 'primary' : 'default'"
-                        @click="currentTool = 'eraser'"
-                      >
+                      <NButton :type="currentTool === 'eraser' ? 'primary' : 'default'" @click="currentTool = 'eraser'">
                         橡皮擦
                       </NButton>
                     </NButtonGroup>
                   </div>
                 </div>
 
-                <div class="editor-canvas-container">
-                  <canvas
-                    ref="canvasRef"
-                    class="editor-canvas"
-                    @mousedown="startDrawing"
-                    @mousemove="draw"
-                    @mouseup="stopDrawing"
-                    @mouseleave="stopDrawing"
-                    @touchstart="handleTouchStart"
-                    @touchmove="handleTouchMove"
-                    @touchend="handleTouchEnd"
-                  ></canvas>
-                </div>
-
                 <div class="editor-tools">
                   <div class="tool-group">
                     <label>筆刷大小</label>
-                    <NSlider
-                      v-model:value="brushSize"
-                      :min="1"
-                      :max="50"
-                      :step="1"
-                    />
+                    <NSlider v-model:value="brushSize" :min="1" :max="50" :step="1" />
                   </div>
 
-                  <div class="tool-group">
+                  <!-- <div class="tool-group">
                     <label>筆刷顏色</label>
                     <div class="color-buttons">
-                      <div
-                        v-for="color in brushColors"
-                        :key="color"
-                        class="color-button"
-                        :style="{ backgroundColor: color }"
-                        :class="{ active: brushColor === color }"
-                        @click="brushColor = color"
-                      ></div>
+                      <div v-for="color in brushColors" :key="color" class="color-button"
+                        :style="{ backgroundColor: color }" :class="{ active: brushColor === color }"
+                        @click="brushColor = color"></div>
                     </div>
-                  </div>
+                  </div> -->
 
                   <div class="action-buttons">
                     <NButton @click="clearCanvas">清除畫布</NButton>
-                    <NButton @click="undo" :disabled="historyIndex <= 0"
-                      >撤銷</NButton
-                    >
-                    <NButton
-                      @click="redo"
-                      :disabled="historyIndex >= history.length - 1"
-                      >重做</NButton
-                    >
+                    <NButton @click="undo" :disabled="historyIndex <= 0">撤銷</NButton>
+                    <NButton @click="redo" :disabled="historyIndex >= history.length - 1">重做</NButton>
                   </div>
+                  <!-- <div class="editor-canvas-container">
+                    <div class="canvas-background" v-if="originalImage">
+                      <img :src="getImageUrl(originalImage)" alt="Original image" class="background-image " />
+                    </div>
+                    <canvas ref="canvasRef" class="editor-canvas" @mousedown="startDrawing" @mousemove="draw"
+                      @mouseup="stopDrawing" @mouseleave="stopDrawing" @touchstart="handleTouchStart"
+                      @touchmove="handleTouchMove" @touchend="handleTouchEnd"></canvas>
+                  </div> -->
+                  <div class="editor-canvas-container">
+                    <div class="canvas-wrapper">
+                      <div class="canvas-background" v-if="originalImage && originalImageDimensions">
+                        <img ref="backgroundImageRef" :src="getImageUrl(originalImage)" alt="Original image"
+                          class="background-image" :style="{
+                            width: `${originalImageDimensions ? originalImageDimensions.origWidth : 0}px`,
+                            height: `${originalImageDimensions ? originalImageDimensions.origHeight : 0}px`
+                          }" />
+                      </div>
+                      <canvas ref="canvasRef" class="editor-canvas" :style="{
+                        width: `${originalImageDimensions ? originalImageDimensions.origWidth : 0}px`,
+                        height: `${originalImageDimensions ? originalImageDimensions.origWidth : 0}px`
+                      }" @mousedown="startDrawing" @mousemove="draw" @mouseup="stopDrawing" @mouseleave="stopDrawing"
+                        @touchstart="handleTouchStart" @touchmove="handleTouchMove" @touchend="handleTouchEnd"></canvas>
+                    </div>
+                  </div>
+                  <!-- <div class="original-image">
+                    <h2>原始圖像</h2>
+                    <div v-if="originalImage" class="image-container">
+                      <img :src="getImageUrl(originalImage)" :width="400" alt="原始圖像">
+                    </div>
+                    <div v-else class="no-image-placeholder">未找到原始圖像</div>
+                  </div> -->
                 </div>
               </div>
             </NGridItem>
 
             <NGridItem>
               <div class="settings-container">
-                <div class="original-image">
-                  <h2>原始圖像</h2>
-                  <div v-if="originalImage" class="image-container">
-                    <NImage
-                      :src="getImageUrl(originalImage)"
-                      object-fit="contain"
-                      :width="400"
-                      :alt="'原始圖像'"
-                      show-toolbar
-                    />
-                  </div>
-                  <div v-else class="no-image-placeholder">未找到原始圖像</div>
-                </div>
-
                 <div class="inpainting-settings">
                   <h2>重生成設置</h2>
 
                   <NForm>
                     <NFormItem label="提示詞">
-                      <NInput
-                        v-model:value="inpaintingPrompt"
-                        type="textarea"
-                        :autosize="{ minRows: 3, maxRows: 6 }"
-                        placeholder="描述你希望局部區域變成的樣子"
-                      />
-                      <NButton
-                        class="optimize-prompt-button"
-                        type="primary"
-                        @click="optimizePrompt"
-                        title="優化提示詞"
-                      >
+                      <NInput v-model:value="inpaintingPrompt" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }"
+                        placeholder="描述你希望局部區域變成的樣子" />
+                      <NButton class="optimize-prompt-button" type="primary" @click="optimizePrompt" title="優化提示詞">
                         ★
                       </NButton>
                     </NFormItem>
 
                     <NFormItem label="負面提示詞">
-                      <NInput
-                        v-model:value="negativePrompt"
-                        type="textarea"
-                        :autosize="{ minRows: 2, maxRows: 4 }"
-                        placeholder="指定不希望出現的元素"
-                      />
+                      <NInput v-model:value="negativePrompt" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }"
+                        placeholder="指定不希望出現的元素" />
                     </NFormItem>
 
                     <NFormItem label="重生成強度">
-                      <NSlider
-                        v-model:value="inpaintingStrength"
-                        :min="0"
-                        :max="100"
-                        :step="1"
-                      />
+                      <NSlider v-model:value="inpaintingStrength" :min="0" :max="100" :step="1" />
                       <span class="param-value">{{ inpaintingStrength }}%</span>
                     </NFormItem>
 
                     <NFormItem label="步數">
-                      <NSlider
-                        v-model:value="inpaintingSteps"
-                        :min="10"
-                        :max="50"
-                        :step="1"
-                      />
+                      <NSlider v-model:value="inpaintingSteps" :min="10" :max="50" :step="1" />
                       <span class="param-value">{{ inpaintingSteps }}</span>
                     </NFormItem>
 
                     <NFormItem label="提示詞引導">
-                      <NSlider
-                        v-model:value="inpaintingGuidance"
-                        :min="1"
-                        :max="20"
-                        :step="0.1"
-                      />
+                      <NSlider v-model:value="inpaintingGuidance" :min="1" :max="20" :step="0.1" />
                       <span class="param-value">{{ inpaintingGuidance }}</span>
                     </NFormItem>
                   </NForm>
@@ -179,27 +129,12 @@
                 <div v-if="inpaintingResults.length" class="inpainting-results">
                   <h2>重生成結果</h2>
                   <NGrid x-gap="16" y-gap="16" cols="1 s:2">
-                    <NGridItem
-                      v-for="(result, index) in inpaintingResults"
-                      :key="index"
-                    >
-                      <div
-                        class="result-card"
-                        :class="{ selected: selectedResultIndex === index }"
-                        @click="selectedResultIndex = index"
-                      >
-                        <NImage
-                          :src="result.url"
-                          object-fit="cover"
-                          :alt="'重生成結果'"
-                        />
+                    <NGridItem v-for="(result, index) in inpaintingResults" :key="index">
+                      <div class="result-card" :class="{ selected: selectedResultIndex === index }"
+                        @click="selectedResultIndex = index">
+                        <NImage :src="result.url" object-fit="cover" :alt="'重生成結果'" />
                         <div class="result-actions">
-                          <NButton
-                            circle
-                            quaternary
-                            @click.stop="useInpaintingResult(result)"
-                            title="使用此結果"
-                          >
+                          <NButton circle quaternary @click.stop="useInpaintingResult(result)" title="使用此結果">
                             ✓
                           </NButton>
                         </div>
@@ -258,8 +193,17 @@ const inpaintingLoading = ref(false);
 const projectId = computed(() => route.params.projectId);
 const imageId = computed(() => route.params.imageId);
 const originalImage = ref(null);
+// const originalImageDimensions = ref(null);
 const inpaintingResults = ref([]);
-const selectedResultIndex = ref(null);
+const selectedResultIndex = ref(null)
+const backgroundImageRef = ref(null);
+const originalImageDimensions = ref({
+  width: 512,
+  height: 512,
+  scaledWidth: 0,
+  scaledHeight: 0,
+  displayScale: 1
+});;
 
 // Canvas/drawing state
 const canvasRef = ref(null);
@@ -335,6 +279,7 @@ onMounted(async () => {
       // Initialize prompt with image's prompt
       inpaintingPrompt.value = image.prompt || "";
 
+      console.log(image.parameters);
       // If there are parameters, use them for initial values
       if (image.parameters) {
         inpaintingStrength.value = image.parameters.strength || 80;
@@ -357,21 +302,61 @@ onMounted(async () => {
 // Initialize canvas
 const initCanvas = () => {
   const canvas = canvasRef.value;
-  if (!canvas) return;
+  if (!canvas || !originalImage.value) return;
 
-  // Set canvas size to container size
+  // Get reference to the container
   const container = canvas.parentElement;
-  canvas.width = container.clientWidth;
-  canvas.height = container.clientHeight;
 
   // Get drawing context
   ctx.value = canvas.getContext("2d");
 
-  // Load image
-  loadImageToCanvas();
+  // Load image dimensions to adjust canvas proportions
+  const img = new Image();
+  img.crossOrigin = "Anonymous";
 
-  // Save initial state
-  saveToHistory();
+  img.onload = () => {
+    // Get original dimensions from parameters if available
+    const origWidth = originalImage.value.parameters?.width || 512;
+    const origHeight = originalImage.value.parameters?.height || 1024;
+
+    // Calculate display size (scaled down for UI display)
+    const maxDisplaySize = Math.min(500, container.clientWidth * 0.9);
+    const displayScale = maxDisplaySize / Math.max(origWidth, origHeight);
+
+    // Calculate the displayed dimensions (keeping aspect ratio)
+    const scaledWidth = Math.floor(origWidth * displayScale);
+    const scaledHeight = Math.floor(origHeight * displayScale);
+
+    // Store original and scaled dimensions for later use
+    originalImageDimensions.value = {
+      width: origWidth,
+      height: origHeight,
+      scaledWidth: scaledWidth,
+      scaledHeight: scaledHeight,
+      displayScale: displayScale
+    };
+
+    console.log("画布尺寸:", origWidth, "x", origHeight);
+
+    // 使用缩放后的尺寸作为画布的实际尺寸，简化坐标转换
+    canvas.width = origWidth;
+    canvas.height = origHeight;
+
+    // 设置绝对定位，与背景图片重叠
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.zIndex = '2';
+
+    // 清除画布
+    ctx.value.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 保存初始状态
+    saveToHistory();
+  };
+
+  // Set image source
+  img.src = getImageUrl(originalImage.value);
 };
 
 // Load image to canvas
@@ -387,30 +372,49 @@ const loadImageToCanvas = () => {
   img.crossOrigin = "Anonymous";
 
   img.onload = () => {
-    // Calculate scale to fit image to canvas
-    const canvas = canvasRef.value;
-    const scale = Math.min(
-      canvas.width / img.width,
-      canvas.height / img.height
-    );
+    // 计算尺寸
+    const origWidth = originalImage.value.parameters?.width || 1024;
+    const origHeight = originalImage.value.parameters?.height || 1024;
 
-    const scaledWidth = img.width * scale;
-    const scaledHeight = img.height * scale;
+    // 计算显示尺寸
+    const maxDisplaySize = Math.min(500, container.clientWidth * 0.9);
+    const displayScale = maxDisplaySize / Math.max(origWidth, origHeight);
 
-    // Center image on canvas
-    const x = (canvas.width - scaledWidth) / 2;
-    const y = (canvas.height - scaledHeight) / 2;
+    const scaledWidth = origWidth * displayScale;
+    const scaledHeight = origHeight * displayScale;
 
-    // Clear canvas
+    // 先设置 originalImageDimensions
+    originalImageDimensions.value = {
+      width: origWidth,
+      height: origHeight,
+      scaledWidth: scaledWidth,
+      scaledHeight: scaledHeight,
+      displayScale: displayScale
+    };
+
+    console.log("设置完成的 originalImageDimensions:", JSON.stringify(originalImageDimensions.value));
+
+    // 然后使用它来设置画布尺寸
+    canvas.style.width = `${scaledWidth}px`;
+    canvas.style.height = `${scaledHeight}px`;
+
+    // 设置实际画布尺寸为原始图像尺寸
+    canvas.width = origWidth;
+    canvas.height = origHeight;
+
+    // 缩放绘图上下文以匹配显示尺寸
+    ctx.value.scale(1 / displayScale, 1 / displayScale);
+
+    // 使画布居中
+    canvas.style.position = 'absolute';
+    canvas.style.left = `${(container.clientWidth - scaledWidth) / 2}px`;
+    canvas.style.top = `${(container.clientHeight - scaledHeight) / 2}px`;
+
+    // 再次清除画布
     ctx.value.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw image
-    ctx.value.drawImage(img, x, y, scaledWidth, scaledHeight);
-
-    // Save to history
+    // 保存初始状态
     saveToHistory();
-
-    console.log("圖像成功加載到畫布");
   };
 
   img.onerror = (error) => {
@@ -431,9 +435,8 @@ const loadImageToCanvas = () => {
       imageUrl = originalImage.value.url;
     }
   } else if (originalImage.value.data) {
-    imageUrl = `data:${originalImage.value.type || "image/jpeg"};base64,${
-      originalImage.value.data
-    }`;
+    imageUrl = `data:${originalImage.value.type || "image/jpeg"};base64,${originalImage.value.data
+      }`;
   }
 
   console.log("圖像URL:", imageUrl); // 添加日誌來查看最終使用的URL
@@ -466,9 +469,12 @@ const draw = (e) => {
   ctx.value.lineWidth = brushSize.value;
 
   if (currentTool.value === "brush") {
-    ctx.value.strokeStyle = brushColor.value;
+    // White is the area to be inpainted (mask)
+    ctx.value.strokeStyle = "#ffffff";
+    // Use source-over for normal drawing
     ctx.value.globalCompositeOperation = "source-over";
   } else if (currentTool.value === "eraser") {
+    // For eraser, we use destination-out to create transparency (erase)
     ctx.value.globalCompositeOperation = "destination-out";
   }
 
@@ -517,12 +523,15 @@ const handleTouchEnd = (e) => {
 };
 
 // Get coordinates
+// Get coordinates
 const getCoordinates = (e) => {
   const canvas = canvasRef.value;
   const rect = canvas.getBoundingClientRect();
+
+  // Get position relative to the visible canvas
   return {
     offsetX: e.clientX - rect.left,
-    offsetY: e.clientY - rect.top,
+    offsetY: e.clientY - rect.top
   };
 };
 
@@ -592,29 +601,44 @@ const handleApplyInpainting = async () => {
   inpaintingLoading.value = true;
 
   try {
-    // Create mask
-    const maskCanvas = createMask();
-    const maskDataUrl = maskCanvas.toDataURL("image/png");
+    // 创建临时画布转换为原始尺寸
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = originalImageDimensions.value.width;
+    tempCanvas.height = originalImageDimensions.value.height;
 
-    // Create blob from data URL
-    const maskBlob = await fetch(maskDataUrl).then((r) => r.blob());
+    const tempCtx = tempCanvas.getContext('2d');
 
+    // 将当前画布内容缩放到原始尺寸
+    tempCtx.drawImage(
+      canvasRef.value,
+      0, 0, canvasRef.value.width, canvasRef.value.height,
+      0, 0, tempCanvas.width, tempCanvas.height
+    );
+
+    const maskDataUrl = tempCanvas.toDataURL("image/png");
+    const maskBlob = await fetch(maskDataUrl).then(r => r.blob());
     // Prepare form data
     const formData = new FormData();
     formData.append("batch_count", 1);
     formData.append("text", inpaintingPrompt.value);
-    formData.append("imgs[]", originalImage.value.id); // Make sure format matches backend expectation
+
+    // Important: The API expects "imgs" as a field name (not imgs[])
+    formData.append("imgs", originalImage.value.id);
+
     formData.append("mask_image", maskBlob, "mask.png");
     formData.append("negative_prompt", negativePrompt.value);
     formData.append("cfg_scale", inpaintingGuidance.value);
-    formData.append("seed", Math.floor(Math.random() * 2147483647)); // Random seed
+
+    // Generate a random seed for variation
+    const seed = Math.floor(Math.random() * 2147483647);
+    formData.append("seed", seed);
 
     // Add parameters
     const parameters = {
       height: originalImage.value.parameters?.height || 1024,
       width: originalImage.value.parameters?.width || 1024,
-      strength: inpaintingStrength.value,
       steps: inpaintingSteps.value,
+      strength: inpaintingStrength.value / 100, // Convert from percentage to 0-1 range
     };
     formData.append("parameters", JSON.stringify(parameters));
 
@@ -870,29 +894,70 @@ const getImageUrl = (image) => {
 .editor-canvas-container {
   flex: 1;
   position: relative;
-  height: 500px;
+  /* height: 400px; */
+  /* Reduced height from 500px to 400px */
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #e0e0e0;
+  /* Add a background color to see container boundaries */
+  border-radius: 4px;
+}
+
+.canvas-wrapper {
+  position: relative;
+  width: fit-content;
+  height: fit-content;
+  margin: 0 auto;
+}
+
+.canvas-background {
+  display: block;
+  position: relative;
+  /* Allow clicks to pass through to canvas */
+}
+
+.background-image {
+
+  position:relative;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
 }
 
 .editor-canvas {
   position: absolute;
   top: 0;
   left: 0;
+  cursor: crosshair;
+  background-color: transparent;
+  mix-blend-mode: difference;
+  opacity: 0.8;
+}
+
+/* .background-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+} */
+
+.editor-tools {
+  /* position: absolute;
+  top: 0;
+  left: 0; */
+  position: relative;
+  margin-top: 50px;
+  margin-bottom: 16px;
+  margin-left: 5px;
+  margin-right: 5px;
   width: 100%;
   height: 100%;
   cursor: crosshair;
-  background-color: #ddd;
-}
-
-.editor-tools {
-  padding: 16px;
-  background-color: #fff;
-  border-top: 1px solid #eee;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
+  z-index: 2;
+  /* Canvas above the background */
+  background-color: transparent;
 }
 
 .tool-group {
@@ -947,7 +1012,21 @@ const getImageUrl = (image) => {
   gap: 24px;
 }
 
-.original-image,
+.original-image {
+  position: absolute;
+  top: 15%;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.image-container img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+
 .inpainting-settings,
 .inpainting-results {
   background-color: #fff;
