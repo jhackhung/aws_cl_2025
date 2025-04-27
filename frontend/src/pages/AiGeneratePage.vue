@@ -39,7 +39,7 @@
               選擇加入下一次圖片生成 )
               <NIcon class="dropdown-icon">{{
                 showSelectedImagesDropdown ? "▲" : "▼"
-                }}</NIcon>
+              }}</NIcon>
 
               <div class="status-dropdown selected-images-dropdown" v-if="showSelectedImagesDropdown">
                 <div v-for="id in selectedImageIds" :key="id" class="selected-image-item" @click="scrollToImage(id)">
@@ -54,7 +54,7 @@
               )
               <NIcon class="dropdown-icon">{{
                 showSavedImagesDropdown ? "▲" : "▼"
-                }}</NIcon>
+              }}</NIcon>
 
               <div class="status-dropdown saved-images-dropdown" v-if="showSavedImagesDropdown">
                 <div v-for="id in savedImageIds" :key="id" class="saved-image-item" @click="scrollToImage(id)">
@@ -721,11 +721,75 @@ const saveImages = () => {
   }
 };
 
+const saveImage = async (imageUrl, prompt = "", seed = null) => {
+  try {
+    let formData = new FormData();
+
+    // Handle different image sources
+    if (typeof imageUrl === 'object' && imageUrl.url) {
+      // Handle object with url property
+      const response = await fetch(imageUrl.url);
+      const blob = await response.blob();
+      formData.append("file", blob, "reference_image.png");
+    } else {
+      // Handle direct URL string
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      formData.append("file", blob, "reference_image.png");
+    }
+
+    // Add required projectId (uses temp if none is available)
+    formData.append("projectId", projectId.value || "temp");
+
+    // Add optional parameters if available
+    if (prompt) {
+      formData.append("prompt", prompt);
+    }
+
+    if (seed) {
+      formData.append("seed", seed);
+    }
+
+    // Add reference image metadata
+    // const parameters = {
+    //   isReference: true,
+    //   source: "userUploaded"
+    // };
+    // formData.append("parameters", parameters);
+
+    // formData.append("parameters[isReference]", true);
+    // formData.append("parameters[source]", "userUploaded");
+    // formData.append("parameters[steps]", form.value.steps);
+
+    // Send request to save the image
+    const saveResponse = await fetch("https://ec2.sausagee.party/img/save", {
+      method: "POST",
+      body: formData
+    });
+
+    if (!saveResponse.ok) {
+      const errorText = await saveResponse.text();
+      console.error("Image save error:", saveResponse.status, errorText);
+      throw new Error(`Failed to save image: ${saveResponse.status} - ${errorText}`);
+    }
+
+    const data = await saveResponse.json();
+    console.log("Image saved successfully, ID:", data.id);
+    return data.id;
+
+  } catch (error) {
+    console.error("Error saving image:", error);
+    throw error;
+  }
+};
+
 // 保存並繼續
+// Fix the saveAndContinue function
+
 const saveAndContinue = async () => {
-  // 如果有選中的圖片但沒有保存，則自動保存
+  // If images are selected but not saved, auto-save them
   if (selectedImageIds.value.length > 0 && savedImageIds.value.length === 0) {
-    // 將選中的圖片添加到保存列表
+    // Add selected images to the saved list
     savedImageIds.value = [...selectedImageIds.value];
     message.success("已自動保存您選中的圖片");
   }
@@ -737,10 +801,10 @@ const saveAndContinue = async () => {
 
   try {
     loading.value = true;
-    try {
-    // 獲取儲存的第一張圖片
-      const imageId = savedImageIds.value[0];
-      const savedImage = generatedImages.value.find((img) => img.id === imageId);
+    
+    // Get the first saved image
+    const imageId = savedImageIds.value[0];
+    const savedImage = generatedImages.value.find((img) => img.id === imageId);
 
     if (!savedImage) {
       message.error("找不到已儲存的圖片，請重新儲存");
@@ -749,74 +813,86 @@ const saveAndContinue = async () => {
 
     console.log("準備保存圖片:", savedImage);
 
-    // 創建要發送的JSON數據，而不是FormData
-    const requestData = {
-      projectId: projectId.value !== "temp" ? projectId.value : "temp",
-      url: savedImage.url, // 直接傳URL而不是檔案本身
-      prompt: savedImage.prompt || editablePrompt.value,
-    };
+    // Save the image using the saveImage function
+    let realImageId;
+    try {
+      // First try to save using our saveImage function
+      realImageId = await saveImage(
+        savedImage.url, 
+        savedImage.prompt || editablePrompt.value,
+        savedImage.parameters?.seed
+      );
+    } catch (saveError) {
+      console.error("使用標準儲存方法失敗，嘗試備用方法:", saveError);
+      
+      // Fallback to JSON method if the first attempt fails
+      const requestData = {
+        projectId: projectId.value !== "temp" ? projectId.value : "temp",
+        url: savedImage.url, // Direct URL rather than file
+        prompt: savedImage.prompt || editablePrompt.value,
+      };
 
-    // 添加參數如果有的話
-    if (savedImage.parameters) {
-      requestData.parameters = savedImage.parameters;
+      // Add parameters if available
+      if (savedImage.parameters) {
+        requestData.parameters = savedImage.parameters;
+      }
+
+      console.log("發送備用 JSON 數據:", requestData);
+
+      // Send request in JSON format
+      const response = await fetch("https://ec2.sausagee.party/img/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestData),
+      });
+
+      if (!response.ok) {
+        console.error("保存圖片失敗狀態碼:", response.status);
+        const errorText = await response.text();
+        console.error("保存圖片失敗回應:", errorText);
+        throw new Error(`保存圖片失敗: ${response.status}`);
+      }
+
+      // Get returned data with the real ID
+      const serverResponse = await response.json();
+      realImageId = serverResponse.id;
     }
-
-    console.log("發送的JSON數據:", requestData);
-
-    // 發送JSON格式請求
-    const response = await fetch("https://ec2.sausagee.party/img/save", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestData),
-    });
-
-    if (!response.ok) {
-      console.error("保存圖片失敗狀態碼:", response.status);
-      const errorText = await response.text();
-      console.error("保存圖片失敗回應:", errorText);
-      throw new Error(`保存圖片失敗: ${response.status}`);
-    }
-
-    // 獲取服務器返回的數據，包含真實 ID
-    const serverResponse = await response.json();
-    console.log("服務器回應:", serverResponse);
-
-    const realImageId = serverResponse.id || savedImage.id;
+    
     console.log("服務器保存的圖片 ID:", realImageId);
 
-    // 將完整的圖片對象更新為包含服務器返回的 ID
+    // Update image object with server-returned ID
     const finalImage = {
       ...savedImage,
-      id: realImageId,
+      id: realImageId || savedImage.id,
       serverSaved: true,
     };
 
-    // 將圖片數據保存到 store 或 localStorage
+    // Save image data to store or localStorage
     if (typeof imageStore.selectedImage !== "undefined") {
       imageStore.selectedImage = finalImage;
     }
 
-    // 無論如何都保存到 localStorage 作為備份
+    // Always save to localStorage as backup
     localStorage.setItem("selectedImage", JSON.stringify(finalImage));
 
-    // 使用 replace 而不是 push 來避免導航歷史堆積
+    // Navigate to revision page
     router.push({
       name: "designer-revision",
       params: {
         projectId: projectId.value !== "temp" ? projectId.value : "temp",
-        imageId: savedImage.id,
+        imageId: finalImage.id, // Use the real ID from server
       },
       replace: false,
     });
 
-    // 使用 localStorage 持久化保存當前選中的圖像，以防頁面刷新
+    // Save to localStorage for persistence across page refreshes
     try {
       localStorage.setItem(
         "lastSelectedImage",
         JSON.stringify({
-          id: savedImage.id,
+          id: finalImage.id,
           url: savedImage.url,
           prompt: savedImage.prompt,
           projectId: savedImage.projectId,
@@ -830,6 +906,8 @@ const saveAndContinue = async () => {
   } catch (error) {
     console.error("導航到修訂頁面時出錯:", error);
     message.error(`保存並繼續失敗: ${error.message || "未知錯誤"}`);
+  } finally {
+    loading.value = false;
   }
 };
 
@@ -997,7 +1075,8 @@ const optimizePrompt = async () => {
   border: 2px solid transparent;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  background-color: #f9f9f9; /* Light background to contrast with transparent images */
+  background-color: #f9f9f9;
+  /* Light background to contrast with transparent images */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1011,8 +1090,10 @@ const optimizePrompt = async () => {
 .generated-image {
   width: 100%;
   height: 100%;
-  object-fit: contain; /* Ensures the entire image is visible */
-  display: block; /* Removes any extra spacing */
+  object-fit: contain;
+  /* Ensures the entire image is visible */
+  display: block;
+  /* Removes any extra spacing */
   background-color: transparent;
   max-width: 100%;
   max-height: 100%;
