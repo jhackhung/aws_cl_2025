@@ -6,11 +6,11 @@
 
       <div class="hero-content" :class="{ 'fade-out': showSidebar }">
         <h1 class="hero-title">
-          <span class="gradient-text">Cool Master</span><br />
-          設計平台
+          <span class="gradient-text">Cooler Master</span><br />
+          設計師平台
         </h1>
         <h2 class="hero-subtitle">
-          使用AI驅動的工具和市場洞察創建尖端庫瑪設計
+          結合AI功能的設計知識庫-庫瑪畫廊
         </h2>
         <div class="hero-actions">
           <n-button
