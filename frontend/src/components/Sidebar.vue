@@ -144,8 +144,8 @@ onMounted(() => {
         <div class="step-item" :class="{ active: activeMenuItem === 'gallery' }" @click="navigateTo('gallery')">
           <div class="step-icon">🏆</div>
           <div class="step-content" v-if="!isCollapsed">
-            <div class="step-title">4. 品牌設計資料庫</div>
-            <div class="step-desc">儲存、製作模板，持續累積品牌設計知識</div>
+            <div class="step-title">4.專案管理</div>
+            <div class="step-desc">我的圖片生成歷程</div>
           </div>
         </div>
 
@@ -153,8 +153,8 @@ onMounted(() => {
         <div class="step-item" :class="{ active: activeMenuItem === 'project' }" @click="navigateTo('project')">
           <div class="step-icon">📁</div>
           <div class="step-content" v-if="!isCollapsed">
-            <div class="step-title">專案管理</div>
-            <div class="step-desc">管理您的設計專案</div>
+            <div class="step-title">設計畫廊</div>
+            <div class="step-desc">品牌設計資料庫</div>
           </div>
         </div>
       </div>
