@@ -98,7 +98,8 @@
           <div v-if="projects.length" class="projects-container">
             <div class="projects-grid">
               <!-- Replacing NGrid with CSS Grid -->
-              <div v-for="project in displayedProjects" :key="project.id" class="project-card">
+              <div v-for="project in displayedProjects" :key="project.id" class="project-card"
+                @click="openProject(project.id)">
                 <ProjectCard :project="project">
                   <template #actions>
                     <NButton type="error" size="small" @click.stop="deleteProject(project.id)">
