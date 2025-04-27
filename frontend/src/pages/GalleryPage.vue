@@ -111,14 +111,14 @@
                 <span class="param-label">強度</span>
                 <span class="param-value">{{
                   selectedImage.params.strength
-                }}</span>
+                  }}</span>
               </div>
 
               <div class="parameter-item" v-if="selectedImage.params?.steps">
                 <span class="param-label">步數</span>
                 <span class="param-value">{{
                   selectedImage.params.steps
-                }}</span>
+                  }}</span>
               </div>
 
               <div class="parameter-item" v-if="selectedImage.params?.seed">
@@ -135,7 +135,7 @@
                 <span class="param-label">創建時間</span>
                 <span class="param-value">{{
                   formatDate(selectedImage.createdAt)
-                }}</span>
+                  }}</span>
               </div>
 
               <div class="parameter-item" v-if="selectedImage.projectName">
@@ -280,16 +280,18 @@ const availableTags = computed(() => {
 
 // 根據篩選條件過濾圖像
 const allFilteredImages = computed(() => {
-  let images = imageStore.images;
+  let images = [];
 
-  // 添加項目名稱到圖像
-  images = images.map((image) => {
-    const project = projectStore.getProjectById(image.projectId);
-    return {
-      ...image,
-      projectName: project?.name,
-    };
-  });
+  if (imageStore.images) {
+    // 添加項目名稱到圖像
+    images = imageStore.images.map((image) => {
+      const project = projectStore.getProjectById(image.projectId);
+      return {
+        ...image,
+        projectName: project?.name,
+      };
+    });
+  }
 
   return images;
 });
