@@ -12,14 +12,26 @@
           </NTag>
         </div>
         <div class="header-right">
-          <NButton type="primary" size="large" @click="goToCreateImage">
-            <template #icon>
-              <div class="button-icon">
-                <NIcon><PlusOutlined /></NIcon>
-              </div>
-            </template>
-            創建新圖像
-          </NButton>
+          <NSpace>
+            <NButton type="info" size="large" @click="saveAsTemplate">
+              <template #icon>
+                <NIcon>
+                  <SaveOutlined />
+                </NIcon>
+              </template>
+              儲存為模板
+            </NButton>
+            <NButton type="primary" size="large" @click="goToCreateImage">
+              <template #icon>
+                <div class="button-icon">
+                  <NIcon>
+                    <PlusOutlined />
+                  </NIcon>
+                </div>
+              </template>
+              創建新圖像
+            </NButton>
+          </NSpace>
         </div>
       </div>
     </NLayoutHeader>
@@ -36,16 +48,97 @@
       </NAlert>
     </div>
   </div>
+
+  <!-- Add template dialog -->
+  <NModal v-model:show="showTemplateDialog" preset="dialog" title="儲存為模板" positive-text="儲存" negative-text="取消"
+    @positive-click="confirmSaveTemplate" @negative-click="cancelSaveTemplate">
+    <NForm ref="formRef" :model="templateForm" :rules="templateRules">
+      <NFormItem label="模板名稱" path="name">
+        <NInput v-model:value="templateForm.name" placeholder="請輸入模板名稱" />
+      </NFormItem>
+      <NFormItem label="模板描述" path="description">
+        <NInput v-model:value="templateForm.description" type="textarea" placeholder="請輸入模板描述" />
+      </NFormItem>
+    </NForm>
+  </NModal>
 </template>
 
 <script setup>
-import { NLayoutHeader, NButton, NTag, NAlert, NIcon } from "naive-ui";
-import { PlusOutlined } from "@vicons/antd";
+import { ref } from 'vue';
+import { NLayoutHeader, NButton, NTag, NAlert, NIcon, NSpace, NModal, NForm, NFormItem, NInput, useMessage } from "naive-ui";
+import { PlusOutlined, SaveOutlined } from "@vicons/antd";
+import { useRoute } from 'vue-router';
 
-const emit = defineEmits(["go-to-create-image"]);
+const route = useRoute();
+const message = useMessage();
+const emit = defineEmits(['go-to-create-image']);
+
+// Get project ID from route params
+const projectId = route.params.projectId;
+
+// Template form state
+const showTemplateDialog = ref(false);
+const templateForm = ref({
+  name: '',
+  description: ''
+});
+
+const templateRules = {
+  name: {
+    required: true,
+    message: '請輸入模板名稱',
+    trigger: ['blur', 'input']
+  }
+};
+
+// Modified saveAsTemplate to show dialog
+const saveAsTemplate = () => {
+  showTemplateDialog.value = true;
+};
+
+// Handle template save confirmation
+const confirmSaveTemplate = async () => {
+  try {
+    const formData = new FormData();
+    formData.append('projectId', projectId);
+    formData.append('name', templateForm.value.name);
+    formData.append('description', templateForm.value.description);
+
+    const response = await fetch('https://ec2.sausagee.party/template/create', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error(`API返回錯誤狀態: ${response.status}`);
+    }
+
+    const data = await response.json();
+    message.success('已成功將專案儲存為模板');
+    showTemplateDialog.value = false;
+
+    // Reset form
+    templateForm.value = {
+      name: '',
+      description: ''
+    };
+  } catch (error) {
+    console.error('儲存模板失敗:', error);
+    message.error('儲存模板失敗，請稍後再試');
+  }
+};
+
+// Handle template save cancellation
+const cancelSaveTemplate = () => {
+  showTemplateDialog.value = false;
+  templateForm.value = {
+    name: '',
+    description: ''
+  };
+};
 
 const goToCreateImage = () => {
-  emit("go-to-create-image");
+  emit('go-to-create-image');
 };
 </script>
 
@@ -146,5 +239,23 @@ const goToCreateImage = () => {
 
 :root.dark .workflow-alert {
   background-color: #1e1e1e !important;
+}
+
+/* Add style for save button */
+.n-button.n-button--info-type {
+  margin-right: 8px;
+}
+
+/* Add styles for template dialog */
+:deep(.n-form-item) {
+  margin-bottom: 24px;
+}
+
+:deep(.n-input) {
+  width: 100%;
+}
+
+:deep(.n-modal) {
+  max-width: 500px;
 }
 </style>

@@ -53,7 +53,7 @@ const routes = [
     name: "designer-revision",
   },
   {
-    path: "/gallery",
+    path: "/gallery/:projectId",
     component: GalleryPage,
     name: "gallery",
   },

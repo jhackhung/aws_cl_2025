@@ -61,7 +61,7 @@ const navigateTo = (key) => {
       }
       break;
     case 'gallery':
-      router.push({ name: 'gallery' });
+      router.push({ name: 'gallery', params: { projectId } });  // Updated this line
       break;
     case 'project':
       router.push({ name: 'project' });
