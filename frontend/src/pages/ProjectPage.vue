@@ -349,7 +349,7 @@ const createProject = async () => {
     const data = await response.json();
 
     // 更新專案列表
-    await projectStore.fetchProjects();
+    await fetchProjects();
 
     // 顯示成功消息
     message.success("專案創建成功");
@@ -381,14 +381,14 @@ const createProject = async () => {
 // 計算所有可用的標籤
 const availableTags = computed(() => {
   const tagsSet = new Set();
-  projectStore.projects.forEach((project) => {
+  projects.value.forEach((project) => {
     project.tags?.forEach((tag) => tagsSet.add(tag));
   });
   return Array.from(tagsSet);
 });
 
 // 獲取專案列表
-const projects = computed(() => projectStore.projects || []);
+const projects = ref([]);
 
 // 基於標籤和搜索篩選專案
 const filteredProjects = computed(() => {
@@ -484,12 +484,54 @@ const fetchTemplates = async () => {
   }
 };
 
+// Add fetchProjects function
+const fetchProjects = async () => {
+  try {
+    loading.value = true;
+    // First get list of project IDs
+    const response = await fetch('https://ec2.sausagee.party/projects');
+    const data = await response.json();
+
+    // Then fetch details for each project
+    const projectDetails = await Promise.all(
+      data.projects.map(async (id) => {
+        const detailResponse = await fetch(`https://ec2.sausagee.party/project/${id}`);
+        const project = await detailResponse.json();
+
+        // Get thumbnail URL from first image if available
+        const thumbnailUrl = `https://ec2.sausagee.party/thumb/${project.id}`;
+
+        return {
+          id: project.id,
+          name: project.name,
+          description: project.description || '',
+          thumbnail: thumbnailUrl,
+          tags: project.tags || [],
+          images: project.images || [],
+          readonly: project.readonly,
+          createdAt: project.created,
+          modifiedAt: project.modified
+        };
+      })
+    );
+
+    projects.value = projectDetails;
+    error.value = null;
+  } catch (err) {
+    console.error('Error fetching projects:', err);
+    error.value = 'Failed to load projects';
+    message.error('載入專案失敗，請稍後再試');
+  } finally {
+    loading.value = false;
+  }
+};
+
 // 初始載入專案和模板
 onMounted(async () => {
   loading.value = true;
   try {
     await Promise.all([
-      projectStore.fetchProjects(),
+      fetchProjects(),
       fetchTemplates()
     ]);
   } catch (error) {

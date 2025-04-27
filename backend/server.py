@@ -769,7 +769,7 @@ async def get_thumb(projectId: str):
                 )
             
         # Reuse get_image_file to return the actual image
-        image_id = result['image_id']
+        image_id = result['id']
         return await get_image_file(image_id)
 
     except mysql.connector.Error as err:
@@ -780,6 +780,7 @@ async def get_thumb(projectId: str):
         )
     except Exception as e:
         logger.error(f"Server error while fetching thumbnail: {str(e)}")
+        logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=500,
             content={"error": f"Server error: {str(e)}"}
