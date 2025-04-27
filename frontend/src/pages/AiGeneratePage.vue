@@ -2,8 +2,8 @@
   <div class="ai-generate-page">
     <AiGeneratePageHeader
       :loading="loading"
-      :selectedImages="savedImageIds"
-      :hasSelectedImages="savedImageIds.length > 0"
+      :selectedImages="selectedImageIds"
+      :hasSelectedImages="selectedImageIds.length > 0"
       @regenerate="regenerateSelected"
       @save-and-continue="saveAndContinue"
     />
@@ -802,16 +802,24 @@ const saveImages = () => {
 
 // 保存並繼續
 const saveAndContinue = async () => {
+  // 如果有選中的圖片但沒有保存，則自動保存
+  if (selectedImageIds.value.length > 0 && savedImageIds.value.length === 0) {
+    // 將選中的圖片添加到保存列表
+    savedImageIds.value = [...selectedImageIds.value];
+    message.success("已自動保存您選中的圖片");
+  }
+
   if (savedImageIds.value.length === 0) {
-    message.warning("請先儲存至少一張圖片");
+    message.warning("請先選擇並儲存至少一張圖片");
     return;
   }
 
   try {
     loading.value = true;
+    try {
     // 獲取儲存的第一張圖片
-    const imageId = savedImageIds.value[0];
-    const savedImage = generatedImages.value.find((img) => img.id === imageId);
+      const imageId = savedImageIds.value[0];
+      const savedImage = generatedImages.value.find((img) => img.id === imageId);
 
     if (!savedImage) {
       message.error("找不到已儲存的圖片，請重新儲存");
@@ -872,24 +880,35 @@ const saveAndContinue = async () => {
     // 無論如何都保存到 localStorage 作為備份
     localStorage.setItem("selectedImage", JSON.stringify(finalImage));
 
-    // 導航到設計師修訂頁面，使用真實的圖片 ID
+    // 使用 replace 而不是 push 來避免導航歷史堆積
     router.push({
       name: "designer-revision",
       params: {
         projectId: projectId.value !== "temp" ? projectId.value : "temp",
-        imageId: realImageId,
+        imageId: savedImage.id,
       },
-      state: {
-        selectedImage: finalImage,
-      },
+      replace: false,
     });
 
-    message.success("圖片已保存，正在進入設計修訂頁面");
+    // 使用 localStorage 持久化保存當前選中的圖像，以防頁面刷新
+    try {
+      localStorage.setItem(
+        "lastSelectedImage",
+        JSON.stringify({
+          id: savedImage.id,
+          url: savedImage.url,
+          prompt: savedImage.prompt,
+          projectId: savedImage.projectId,
+          parameters: savedImage.parameters,
+          createdAt: savedImage.createdAt,
+        })
+      );
+    } catch (e) {
+      console.error("無法將圖像保存到 localStorage:", e);
+    }
   } catch (error) {
-    console.error("導航到設計師修訂頁面失敗:", error);
-    message.error("導航失敗: " + (error.message || "未知錯誤"));
-  } finally {
-    loading.value = false;
+    console.error("導航到修訂頁面時出錯:", error);
+    message.error(`保存並繼續失敗: ${error.message || "未知錯誤"}`);
   }
 };
 

@@ -552,7 +552,79 @@ async def create_template(
             content={"error": f"Server error: {str(e)}"}
         )
 
+@app.post("/template/delete")
+async def delete_template(id: str = Form(...)):
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        # First verify the template exists and check if it's a readonly project
+        verify_query = "SELECT readonly FROM projects WHERE id = %s"
+        cursor.execute(verify_query, (id,))
+        template = cursor.fetchone()
+        
+        if not template:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Template not found"}
+            )
+            
+        if not template["readonly"]:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Specified ID is not a template"}
+            )
+        
+        # Check if any projects are using this template
+        check_usage_query = "SELECT COUNT(*) as count FROM projects WHERE template_id = %s"
+        cursor.execute(check_usage_query, (id,))
+        usage = cursor.fetchone()
+        
+        if usage["count"] > 0:
+            return JSONResponse(
+                status_code=409,
+                content={"error": "Template is in use by existing projects"}
+            )
+            
+        # Start deletion process
+        # 1. Clear project association from images
+        update_images_query = """
+        UPDATE images 
+        SET project_id = NULL 
+        WHERE project_id = %s
+        """
+        cursor.execute(update_images_query, (id,))
+        
+        # 2. Delete template tags
+        delete_tags_query = "DELETE FROM project_tags WHERE project_id = %s"
+        cursor.execute(delete_tags_query, (id,))
+        
+        # 3. Delete template record
+        delete_template_query = "DELETE FROM projects WHERE id = %s"
+        cursor.execute(delete_template_query, (id,))
+        
+        conn.commit()
+        cursor.close()
+        
+        return {
+            "message": "Template deleted successfully",
+            "id": id
+        }
 
+    except mysql.connector.Error as err:
+        conn.rollback()
+        logger.error(f"Database error while deleting template: {str(err)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Database error: {str(err)}"}
+        )
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Server error while deleting template: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
+    
 @app.post("/txt/optimize")
 async def optimize_text(text: str = Form(...)):
     return {"text": enhance_pc_case_prompt(text)}  # Placeholder
@@ -769,7 +841,7 @@ async def get_thumb(projectId: str):
                 )
             
         # Reuse get_image_file to return the actual image
-        image_id = result['image_id']
+        image_id = result['id']
         return await get_image_file(image_id)
 
     except mysql.connector.Error as err:
@@ -780,6 +852,7 @@ async def get_thumb(projectId: str):
         )
     except Exception as e:
         logger.error(f"Server error while fetching thumbnail: {str(e)}")
+        logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=500,
             content={"error": f"Server error: {str(e)}"}
