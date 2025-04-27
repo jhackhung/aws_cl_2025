@@ -322,20 +322,33 @@ async def delete_project(id: str = Form(...)):
                 content={"error": "Cannot delete readonly project/template"}
             )
             
-        # Start deletion process
-        # 1. Clear project association from images
-        update_images_query = """
-        UPDATE images 
-        SET project_id = NULL 
-        WHERE project_id = %s
-        """
-        cursor.execute(update_images_query, (id,))
+        # Get all images associated with this project
+        image_query = "SELECT id FROM images WHERE project_id = %s"
+        cursor.execute(image_query, (id,))
+        project_images = cursor.fetchall()
         
-        # 2. Delete project tags
+        # Delete images from S3 and database
+        for image in project_images:
+            try:
+                # Delete from S3
+                s3_key = f"images/{image['id']}"
+                s3_client.delete_object(
+                    Bucket="scottish-leader",
+                    Key=s3_key
+                )
+            except Exception as e:
+                logger.error(f"Failed to delete image {image['id']} from S3: {str(e)}")
+                # Continue with other deletions even if S3 delete fails
+        
+        # Delete all project images from database
+        delete_images_query = "DELETE FROM images WHERE project_id = %s"
+        cursor.execute(delete_images_query, (id,))
+        
+        # Delete project tags
         delete_tags_query = "DELETE FROM project_tags WHERE project_id = %s"
         cursor.execute(delete_tags_query, (id,))
         
-        # 3. Delete project record
+        # Delete project record
         delete_project_query = "DELETE FROM projects WHERE id = %s"
         cursor.execute(delete_project_query, (id,))
         
@@ -343,7 +356,7 @@ async def delete_project(id: str = Form(...)):
         cursor.close()
         
         return {
-            "message": "Project deleted successfully",
+            "message": "Project and associated images deleted successfully",
             "id": id
         }
 
@@ -504,6 +517,10 @@ async def create_template(
         template_name = name or f"Template - {source_project['name']}"
         template_description = description or source_project['description']
 
+        # Get source project images
+        cursor.execute("SELECT id, type FROM images WHERE project_id = %s", (projectId,))
+        source_images = cursor.fetchall()
+
         # Copy project metadata with readonly flag
         copy_project_query = """
         INSERT INTO projects (id, name, description, created_at, modified_at, readonly)
@@ -511,6 +528,7 @@ async def create_template(
         """
         cursor.execute(copy_project_query, 
                       (template_id, template_name, template_description, current_time, current_time))
+
         # Copy project tags
         copy_tags_query = """
         INSERT INTO project_tags (project_id, tag)
@@ -518,14 +536,43 @@ async def create_template(
         """
         cursor.execute(copy_tags_query, (template_id, projectId))
 
-        # Copy images with new project_id
-        copy_images_query = """
-        INSERT INTO images (id, project_id, type, seed, prompt, parameters)
-        SELECT UUID(), %s, type, seed, prompt, parameters 
-        FROM images 
-        WHERE project_id = %s
-        """
-        cursor.execute(copy_images_query, (template_id, projectId))
+        # Copy images and their data
+        for source_image in source_images:
+            # Generate new image ID
+            new_image_id = str(uuid.uuid4())
+            
+            try:
+                # Copy image data from S3
+                source_key = f"images/{source_image['id']}"
+                target_key = f"images/{new_image_id}"
+                
+                # Get source image from S3
+                s3_response = s3_client.get_object(
+                    Bucket="scottish-leader",
+                    Key=source_key
+                )
+                image_data = s3_response['Body'].read()
+                
+                # Upload to new location in S3
+                s3_client.put_object(
+                    Bucket="scottish-leader",
+                    Key=target_key,
+                    Body=image_data,
+                    ContentType=source_image['type']
+                )
+                
+                # Insert new image record
+                insert_image_query = """
+                INSERT INTO images (id, project_id, type, seed, prompt, parameters)
+                SELECT %s, %s, type, seed, prompt, parameters 
+                FROM images 
+                WHERE id = %s
+                """
+                cursor.execute(insert_image_query, (new_image_id, template_id, source_image['id']))
+                
+            except Exception as e:
+                logger.error(f"Failed to copy image {source_image['id']}: {str(e)}")
+                raise
 
         conn.commit()
         cursor.close()
@@ -585,20 +632,33 @@ async def delete_template(id: str = Form(...)):
                 content={"error": "Template is in use by existing projects"}
             )
             
-        # Start deletion process
-        # 1. Clear project association from images
-        update_images_query = """
-        UPDATE images 
-        SET project_id = NULL 
-        WHERE project_id = %s
-        """
-        cursor.execute(update_images_query, (id,))
+        # Get all images associated with this template
+        image_query = "SELECT id FROM images WHERE project_id = %s"
+        cursor.execute(image_query, (id,))
+        template_images = cursor.fetchall()
         
-        # 2. Delete template tags
+        # Delete images from S3 and database
+        for image in template_images:
+            try:
+                # Delete from S3
+                s3_key = f"images/{image['id']}"
+                s3_client.delete_object(
+                    Bucket="scottish-leader",
+                    Key=s3_key
+                )
+            except Exception as e:
+                logger.error(f"Failed to delete image {image['id']} from S3: {str(e)}")
+                # Continue with other deletions even if S3 delete fails
+        
+        # Delete all template images from database
+        delete_images_query = "DELETE FROM images WHERE project_id = %s"
+        cursor.execute(delete_images_query, (id,))
+        
+        # Delete template tags
         delete_tags_query = "DELETE FROM project_tags WHERE project_id = %s"
         cursor.execute(delete_tags_query, (id,))
         
-        # 3. Delete template record
+        # Delete template record
         delete_template_query = "DELETE FROM projects WHERE id = %s"
         cursor.execute(delete_template_query, (id,))
         
@@ -606,7 +666,7 @@ async def delete_template(id: str = Form(...)):
         cursor.close()
         
         return {
-            "message": "Template deleted successfully",
+            "message": "Template and associated images deleted successfully",
             "id": id
         }
 
