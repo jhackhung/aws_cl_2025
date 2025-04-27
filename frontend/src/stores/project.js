@@ -24,38 +24,24 @@ export const useProjectStore = defineStore("project", {
     async fetchProjects() {
       this.loading = true;
       try {
-        // 模擬 API 調用，實際使用時需要替換為真實的 API 端點
-        // const { data } = await axios.get('/api/projects')
-        // 臨時使用模擬數據
-        const data = [
-          {
-            id: "1",
-            name: "產品設計 A",
-            description: "智能手錶的視覺設計",
-            tags: ["產品", "科技", "手錶"],
-            createdAt: "2025-04-20T12:00:00Z",
-            thumbnail: "https://picsum.photos/400/300?random=1",
-          },
-          {
-            id: "2",
-            name: "概念設計 B",
-            description: "未來風格的傢俱設計",
-            tags: ["傢俱", "概念", "未來"],
-            createdAt: "2025-04-22T14:30:00Z",
-            thumbnail: "https://picsum.photos/400/300?random=2",
-          },
-          {
-            id: "3",
-            name: "海報設計 C",
-            description: "夏季促銷活動海報",
-            tags: ["海報", "促銷", "夏季"],
-            createdAt: "2025-04-23T09:15:00Z",
-            thumbnail: "https://picsum.photos/400/300?random=3",
-          },
-        ];
-        this.projects = data;
+        // Get list of project IDs
+        const response = await axios.get('https://ec2.sausagee.party/projects');
+        const { projects: projectIds } = response.data;
+
+        // Fetch details for each project
+        const projectDetails = await Promise.all(
+          projectIds.map(async (id) => {
+            const detailResponse = await axios.get(`https://ec2.sausagee.party/project/${id}`);
+            return detailResponse.data;
+          })
+        );
+
+        this.projects = projectDetails;
+        this.error = null;
       } catch (err) {
+        console.error('Error fetching projects:', err);
         this.error = err.message;
+        throw err;
       } finally {
         this.loading = false;
       }
@@ -66,20 +52,14 @@ export const useProjectStore = defineStore("project", {
 
       this.loading = true;
       try {
-        // 模擬 API 調用
-        // const { data } = await axios.get(`/api/projects/${id}`)
-        // 臨時使用模擬數據
-        const data = this.projects.find((p) => p.id === id) || {
-          id,
-          name: `項目 ${id}`,
-          description: "項目描述...",
-          tags: [],
-          createdAt: new Date().toISOString(),
-          images: [],
-        };
-        this.currentProject = data;
+        const response = await axios.get(`https://ec2.sausagee.party/project/${id}`);
+        this.currentProject = response.data;
+        this.error = null;
+        return response.data;
       } catch (err) {
+        console.error('Error fetching project:', err);
         this.error = err.message;
+        throw err;
       } finally {
         this.loading = false;
       }
@@ -88,18 +68,22 @@ export const useProjectStore = defineStore("project", {
     async createProject(project) {
       this.loading = true;
       try {
-        // 模擬 API 調用
-        // const { data } = await axios.post('/api/projects', project)
-        // 臨時使用模擬數據
-        const data = {
-          ...project,
-          id: Date.now().toString(),
-          createdAt: new Date().toISOString(),
-          thumbnail: "https://picsum.photos/400/300?random=4",
-        };
-        this.projects.push(data);
-        return data;
+        const formData = new FormData();
+        formData.append('name', project.name);
+        formData.append('description', project.description);
+        if (project.templateId) {
+          formData.append('templateId', project.templateId);
+        }
+
+        const response = await axios.post('https://ec2.sausagee.party/project/create', formData);
+        const newProjectId = response.data.id;
+
+        // Fetch the created project details
+        const newProject = await this.fetchProjectById(newProjectId);
+        this.projects.push(newProject);
+        return newProject;
       } catch (err) {
+        console.error('Error creating project:', err);
         this.error = err.message;
         throw err;
       } finally {
@@ -110,19 +94,15 @@ export const useProjectStore = defineStore("project", {
     async updateProject(id, updates) {
       this.loading = true;
       try {
-        // 模擬 API 調用
-        // const { data } = await axios.put(`/api/projects/${id}`, updates)
-        // 臨時使用模擬數據
+        // Update project implementation will be added later when the endpoint is ready
+        const updatedProject = await this.fetchProjectById(id);
         const index = this.projects.findIndex((p) => p.id === id);
         if (index !== -1) {
-          this.projects[index] = { ...this.projects[index], ...updates };
-          if (this.currentProject && this.currentProject.id === id) {
-            this.currentProject = { ...this.currentProject, ...updates };
-          }
-          return this.projects[index];
+          this.projects[index] = updatedProject;
         }
-        throw new Error("找不到項目");
+        return updatedProject;
       } catch (err) {
+        console.error('Error updating project:', err);
         this.error = err.message;
         throw err;
       } finally {
@@ -133,19 +113,22 @@ export const useProjectStore = defineStore("project", {
     async deleteProject(id) {
       this.loading = true;
       try {
-        // 模擬 API 調用
-        // await axios.delete(`/api/projects/${id}`)
-        // 臨時使用模擬數據
+        const formData = new FormData();
+        formData.append('id', id);
+
+        await axios.post('https://ec2.sausagee.party/project/delete', formData);
+        
+        // Remove from local state
         const index = this.projects.findIndex((p) => p.id === id);
         if (index !== -1) {
           this.projects.splice(index, 1);
-          if (this.currentProject && this.currentProject.id === id) {
-            this.currentProject = null;
-          }
-          return true;
         }
-        throw new Error("找不到項目");
+        if (this.currentProject?.id === id) {
+          this.currentProject = null;
+        }
+        return true;
       } catch (err) {
+        console.error('Error deleting project:', err);
         this.error = err.message;
         throw err;
       } finally {
