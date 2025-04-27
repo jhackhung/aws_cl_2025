@@ -157,7 +157,7 @@
               >
                 <NImage
                   :src="image.url"
-                  object-fit="cover"
+                  object-fit="contain"
                   :alt="'生成圖像'"
                   class="generated-image"
                   preview-disabled
@@ -801,35 +801,96 @@ const saveImages = () => {
 };
 
 // 保存並繼續
-const saveAndContinue = () => {
+const saveAndContinue = async () => {
   if (savedImageIds.value.length === 0) {
     message.warning("請先儲存至少一張圖片");
     return;
   }
 
-  // 獲取儲存的第一張圖片
-  const imageId = savedImageIds.value[0];
-  const savedImage = generatedImages.value.find((img) => img.id === imageId);
+  try {
+    loading.value = true;
+    // 獲取儲存的第一張圖片
+    const imageId = savedImageIds.value[0];
+    const savedImage = generatedImages.value.find((img) => img.id === imageId);
 
-  if (!savedImage) {
-    message.error("找不到已儲存的圖片，請重新儲存");
-    return;
-  }
+    if (!savedImage) {
+      message.error("找不到已儲存的圖片，請重新儲存");
+      return;
+    }
 
-  // 將儲存的圖片保存到 store
-  imageStore.selectImage(savedImage);
+    console.log("準備保存圖片:", savedImage);
 
-  // 導航到設計師修訂頁面
-  router.push({
-    name: "designer-revision",
-    params: {
+    // 創建要發送的JSON數據，而不是FormData
+    const requestData = {
       projectId: projectId.value !== "temp" ? projectId.value : "temp",
-      imageId: savedImage.id,
-    },
-    state: {
-      selectedImage: savedImage,
-    },
-  });
+      url: savedImage.url, // 直接傳URL而不是檔案本身
+      prompt: savedImage.prompt || editablePrompt.value,
+    };
+
+    // 添加參數如果有的話
+    if (savedImage.parameters) {
+      requestData.parameters = savedImage.parameters;
+    }
+
+    console.log("發送的JSON數據:", requestData);
+
+    // 發送JSON格式請求
+    const response = await fetch("https://ec2.sausagee.party/img/save", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestData),
+    });
+
+    if (!response.ok) {
+      console.error("保存圖片失敗狀態碼:", response.status);
+      const errorText = await response.text();
+      console.error("保存圖片失敗回應:", errorText);
+      throw new Error(`保存圖片失敗: ${response.status}`);
+    }
+
+    // 獲取服務器返回的數據，包含真實 ID
+    const serverResponse = await response.json();
+    console.log("服務器回應:", serverResponse);
+
+    const realImageId = serverResponse.id || savedImage.id;
+    console.log("服務器保存的圖片 ID:", realImageId);
+
+    // 將完整的圖片對象更新為包含服務器返回的 ID
+    const finalImage = {
+      ...savedImage,
+      id: realImageId,
+      serverSaved: true,
+    };
+
+    // 將圖片數據保存到 store 或 localStorage
+    if (typeof imageStore.selectedImage !== "undefined") {
+      imageStore.selectedImage = finalImage;
+    }
+
+    // 無論如何都保存到 localStorage 作為備份
+    localStorage.setItem("selectedImage", JSON.stringify(finalImage));
+
+    // 導航到設計師修訂頁面，使用真實的圖片 ID
+    router.push({
+      name: "designer-revision",
+      params: {
+        projectId: projectId.value !== "temp" ? projectId.value : "temp",
+        imageId: realImageId,
+      },
+      state: {
+        selectedImage: finalImage,
+      },
+    });
+
+    message.success("圖片已保存，正在進入設計修訂頁面");
+  } catch (error) {
+    console.error("導航到設計師修訂頁面失敗:", error);
+    message.error("導航失敗: " + (error.message || "未知錯誤"));
+  } finally {
+    loading.value = false;
+  }
 };
 
 // 優化提示詞
@@ -979,6 +1040,11 @@ const optimizePrompt = async () => {
   min-width: min-content; /* Ensures the row doesn't wrap */
 }
 
+.generated-image {
+  width: 100%;
+  height: 100%;
+}
+
 .image-card-container {
   flex: 0 0 auto;
   width: 300px; /* Fixed width for each card */
@@ -988,11 +1054,37 @@ const optimizePrompt = async () => {
   overflow: hidden;
   border: 2px solid transparent;
   transition: all 0.3s ease;
+  background-color: #f5f5f5; /* Add a background color to show around the image */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .image-card-container.selected {
   border-color: #2080f0;
   box-shadow: 0 0 0 2px rgba(32, 128, 240, 0.3);
+}
+
+.image-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.1) 0%,
+    rgba(0, 0, 0, 0.3) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.image-card-container:hover .image-overlay {
+  opacity: 1;
 }
 
 .selection-indicator {
