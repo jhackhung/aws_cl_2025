@@ -2,12 +2,12 @@
   <NCard class="project-card" hoverable @click="$emit('click')">
     <template #cover>
       <div class="project-thumbnail">
-        <NImage
-          :src="project.thumbnail"
-          object-fit="cover"
-          fallback-src="https://www.naiveui.com/assets/no-image.png"
-          :alt="project.name"
-        />
+        <NImage :src="project.thumbnail" object-fit="cover" fallback-src="https://www.naiveui.com/assets/no-image.png"
+          :alt="project.name" />
+        <!-- Add actions overlay -->
+        <div class="project-actions">
+          <slot name="actions"></slot>
+        </div>
       </div>
     </template>
 
@@ -16,13 +16,7 @@
       <p class="project-description">{{ project.description }}</p>
 
       <div class="project-tags">
-        <NTag
-          v-for="tag in project.tags"
-          :key="tag"
-          size="small"
-          :bordered="false"
-          type="info"
-        >
+        <NTag v-for="tag in project.tags" :key="tag" size="small" :bordered="false" type="info">
           {{ tag }}
         </NTag>
       </div>
@@ -63,8 +57,10 @@ const formatDate = (dateString) => {
   flex-direction: column;
   cursor: pointer;
   transition: transform 0.2s ease-in-out;
-  height: 100%; /* Make card fill the grid cell height */
-  width: 100%; /* Make card fill the grid cell width */
+  height: 100%;
+  /* Make card fill the grid cell height */
+  width: 100%;
+  /* Make card fill the grid cell width */
 }
 
 .project-card:hover {
@@ -74,7 +70,8 @@ const formatDate = (dateString) => {
 .project-thumbnail {
   position: relative;
   width: 100%;
-  padding-top: 56.25%; /* 16:9 */
+  padding-top: 56.25%;
+  /* 16:9 */
   overflow: hidden;
   flex: none;
 }
@@ -85,6 +82,33 @@ const formatDate = (dateString) => {
   left: 0;
   width: 100%;
   height: 100%;
+}
+
+/* Add new styles for actions */
+.project-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.project-card:hover .project-actions {
+  opacity: 1;
+}
+
+/* Ensure delete button stands out */
+.project-actions :deep(.n-button) {
+  backdrop-filter: blur(4px);
+  border: none;
+}
+
+.project-actions :deep(.n-button:hover) {
+  background-color: var(--error-color) !important;
+  color: white !important;
 }
 
 .project-info {
@@ -124,6 +148,7 @@ const formatDate = (dateString) => {
 .project-meta {
   font-size: 12px;
   color: #999;
-  margin-top: auto; /* Push meta to bottom of card */
+  margin-top: auto;
+  /* Push meta to bottom of card */
 }
 </style>
