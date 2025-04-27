@@ -40,7 +40,16 @@
               <NImage :src="template.thumbnail" object-fit="cover" :preview-disabled="true"
                 fallback-src="/placeholder-image.png" :alt="template.name" />
               <div class="template-quick-actions">
-                <NButton type="primary" size="small">快速使用</NButton>
+                <NSpace>
+                  <NButton type="primary" size="small">快速使用</NButton>
+                  <NButton type="error" size="small" @click.stop="deleteTemplate(template.id)">
+                    <template #icon>
+                      <NIcon>
+                        <DeleteOutlined />
+                      </NIcon>
+                    </template>
+                  </NButton>
+                </NSpace>
               </div>
             </div>
             <div class="template-meta">
@@ -89,9 +98,19 @@
           <div v-if="projects.length" class="projects-container">
             <div class="projects-grid">
               <!-- Replacing NGrid with CSS Grid -->
-              <div v-for="project in displayedProjects" :key="project.id" class="project-card"
-                @click="openProject(project.id)">
-                <ProjectCard :project="project" />
+              <div v-for="project in displayedProjects" :key="project.id" class="project-card">
+                <ProjectCard :project="project">
+                  <template #actions>
+                    <NButton type="error" size="small" @click.stop="deleteProject(project.id)">
+                      <template #icon>
+                        <NIcon>
+                          <DeleteOutlined />
+                        </NIcon>
+                      </template>
+                      刪除
+                    </NButton>
+                  </template>
+                </ProjectCard>
               </div>
             </div>
 
@@ -226,6 +245,7 @@ import {
   NResult,
   NDivider,
   NRadioGroup,
+  NSpace,
 } from "naive-ui";
 import {
   PlusOutlined,
@@ -233,6 +253,7 @@ import {
   CheckCircleFilled,
   DownOutlined,
   UpOutlined,
+  DeleteOutlined,
 } from "@vicons/antd";
 import ProjectCard from "../components/project/ProjectCard.vue";
 import TagSelector from "../components/ui/TagSelector.vue";
@@ -573,43 +594,73 @@ const onPageSizeChange = (size) => {
   currentPage.value = 1; // 重置到第一頁
 };
 
-// 創建專案
-// const createProject = async () => {
-//   if (!newProject.value.name) return;
+// Update the delete functions
+const deleteProject = async (projectId) => {
+  try {
+    // Use native confirm dialog
+    const confirmed = window.confirm('確定要刪除此專案嗎？此操作無法復原。');
 
-//   creatingProject.value = true;
-//   try {
-//     const createdProject = await projectStore.createProject({
-//       ...newProject.value,
-//       templateId: selectedTemplate.value,
-//     });
+    if (confirmed) {
+      loading.value = true;
+      const formData = new FormData();
+      formData.append('id', projectId);
 
-//     // 顯示成功消息
-//     message.success("專案創建成功");
+      const response = await fetch('https://ec2.sausagee.party/project/delete', {
+        method: 'POST',
+        body: formData
+      });
 
-//     // 重置表單
-//     newProject.value = {
-//       name: "",
-//       description: "",
-//       tags: [],
-//     };
-//     selectedTemplate.value = null;
-//     showCreateModal.value = false;
+      if (!response.ok) {
+        throw new Error(`API返回錯誤狀態: ${response.status}`);
+      }
 
-//     // 導航到新建專案的設計頁面
-//     if (createdProject.id) {
-//       router.push({
-//         name: "design-input",
-//         params: { projectId: createdProject.id },
-//       });
-//     }
-//   } catch (error) {
-//     console.error("創建專案失敗:", error);
-//     message.error("創建專案失敗，請稍後再試");
-//   } finally {
-//     creatingProject.value = false;
-//   }
-// };
+      // Refresh projects list
+      await fetchProjects();
+      message.success('專案已刪除');
+    }
+  } catch (error) {
+    console.error('刪除專案失敗:', error);
+    message.error('刪除專案失敗，請稍後再試');
+  } finally {
+    loading.value = false;
+  }
+};
+
+const deleteTemplate = async (templateId) => {
+  try {
+    // Use native confirm dialog
+    const confirmed = window.confirm('確定要刪除此模板嗎？此操作無法復原。');
+
+    if (confirmed) {
+      loading.value = true;
+      const formData = new FormData();
+      formData.append('id', templateId);
+
+      const response = await fetch('https://ec2.sausagee.party/template/delete', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 409) {
+          message.error('此模板正在被使用中，無法刪除');
+          return;
+        }
+        throw new Error(errorData.error || `API返回錯誤狀態: ${response.status}`);
+      }
+
+      // Refresh templates list
+      await fetchTemplates();
+      message.success('模板已刪除');
+    }
+  } catch (error) {
+    console.error('刪除模板失敗:', error);
+    message.error('刪除模板失敗，請稍後再試');
+  } finally {
+    loading.value = false;
+  }
+};
 </script>
 
 <style scoped>
@@ -745,9 +796,19 @@ const onPageSizeChange = (size) => {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+.project-card .n-button.n-button--error-type {
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
 .project-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+
+.project-card:hover .n-button.n-button--error-type {
+  opacity: 1;
 }
 
 .pagination-container {
@@ -1178,6 +1239,11 @@ const onPageSizeChange = (size) => {
   opacity: 0;
   transform: translateY(10px);
   transition: all 0.3s ease;
+}
+
+
+.template-quick-actions .n-button {
+  backdrop-filter: blur(4px);
 }
 
 .template-item:hover .template-quick-actions {
