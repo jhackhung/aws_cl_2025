@@ -812,26 +812,43 @@ const onPageSizeChange = (size) => {
   height: 140px;
   overflow: hidden;
   flex-shrink: 0;
-  width: 100%;
 }
 
-.template-image :deep(.n-image) {
-  height: 100%;
+.template-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  color: var(--primary-color);
 }
 
-.template-image :deep(.n-image img) {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
+.template-card:hover .template-overlay {
+  opacity: 1;
 }
 
-.template-image :deep(.n-image-wrapper),
-.template-image :deep(.n-image-preview-container) {
-  height: 100%;
-  width: 100%;
+.selected-template .template-overlay {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
 }
+
+.template-check {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 8px;
+}
+
 
 .template-info {
   padding: 12px;
@@ -1145,25 +1162,32 @@ const onPageSizeChange = (size) => {
   position: relative;
   height: 140px;
   overflow: hidden;
-  width: 100%;
 }
 
 .template-preview :deep(.n-image) {
   height: 100%;
-  width: 100%;
+  /* Make NImage component fill container height */
 }
 
 .template-preview :deep(.n-image img) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* Ensure image covers the area */
   object-position: center;
+  /* Center the image */
 }
 
-.template-preview :deep(.n-image-wrapper),
+/* Add these new styles for better image handling */
 .template-preview :deep(.n-image-preview-container) {
   height: 100%;
-  width: 100%;
+}
+
+.template-preview :deep(.n-image-wrapper) {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .template-quick-actions {
